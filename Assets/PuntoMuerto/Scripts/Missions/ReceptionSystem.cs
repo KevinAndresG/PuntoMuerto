@@ -347,6 +347,7 @@ namespace PuntoMuerto
             tm.color = new Color(1f, 0.9f, 0.65f);
             tm.anchor = TextAnchor.MiddleCenter;
             tm.alignment = TextAlignment.Center;
+            TextStyle.Apply(tm);
 
             var col = go.AddComponent<CapsuleCollider>();
             col.height = 1.9f;

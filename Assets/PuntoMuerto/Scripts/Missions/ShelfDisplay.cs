@@ -36,6 +36,7 @@ namespace PuntoMuerto
                 tm.anchor = TextAnchor.MiddleCenter;
                 tm.alignment = TextAlignment.Center;
                 tm.color = new Color(0.95f, 0.92f, 0.8f);
+                TextStyle.Apply(tm);
                 labels[i] = tm;
             }
         }

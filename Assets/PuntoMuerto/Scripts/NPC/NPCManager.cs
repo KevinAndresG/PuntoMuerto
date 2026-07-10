@@ -153,6 +153,7 @@ namespace PuntoMuerto
             tm.fontSize = 48;
             tm.color = new Color(0.75f, 0.1f, 0.1f);
             tm.anchor = TextAnchor.MiddleCenter;
+            TextStyle.Apply(tm);
         }
     }
 }

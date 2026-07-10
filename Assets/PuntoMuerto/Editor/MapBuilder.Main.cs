@@ -95,6 +95,27 @@ namespace PuntoMuerto.EditorTools
             return go;
         }
 
+        static Material text3DMat;
+
+        /// <summary>Material asset compartido: texto de una sola cara que respeta paredes.</summary>
+        static Material Text3DMaterial()
+        {
+            if (text3DMat != null) return text3DMat;
+            const string path = "Assets/PuntoMuerto/Materials/Texto3D.mat";
+            text3DMat = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (text3DMat == null)
+            {
+                var shader = Shader.Find("PuntoMuerto/Text3D");
+                var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                if (shader == null || font == null) return null;
+                var mat = new Material(shader) { mainTexture = font.material.mainTexture };
+                System.IO.Directory.CreateDirectory("Assets/PuntoMuerto/Materials");
+                AssetDatabase.CreateAsset(mat, path);
+                text3DMat = mat;
+            }
+            return text3DMat;
+        }
+
         static TextMesh Text3D(string text, Transform parent, Vector3 pos, float charSize,
             Color color, float rotY = 0f, int fontSize = 60, FontStyle style = FontStyle.Bold)
         {
@@ -110,6 +131,8 @@ namespace PuntoMuerto.EditorTools
             tm.anchor = TextAnchor.MiddleCenter;
             tm.alignment = TextAlignment.Center;
             tm.fontStyle = style;
+            var m3 = Text3DMaterial();
+            if (m3 != null) go.GetComponent<MeshRenderer>().sharedMaterial = m3;
             return tm;
         }
 
