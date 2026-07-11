@@ -46,9 +46,10 @@ namespace PuntoMuerto
                 timer = 2f;
                 var g = GameManager.I; var m = MetasManager.I;
                 if (g == null || m == null) return;
-                var inv = new int[6];
+                int nItems = System.Enum.GetValues(typeof(ItemType)).Length;
+                var inv = new int[nItems];
                 if (InventorySystem.I != null)
-                    for (int i = 0; i < 6; i++) inv[i] = InventorySystem.I.Count((ItemType)i);
+                    for (int i = 0; i < nItems; i++) inv[i] = InventorySystem.I.Count((ItemType)i);
                 int nLoans = BankSystem.I != null ? BankSystem.I.Prestamos.Count : 0;
                 var loanCuotas = new int[nLoans];
                 var loanSemanas = new int[nLoans];
@@ -127,7 +128,7 @@ namespace PuntoMuerto
         {
             public int Id, Type, Pay, DeadlineDay, OwnerNpcIndex, VentaItem, VentaCount;
             public string Title, Description, ClientName;
-            public bool PayIsDirty, EsNocturna, OfreceLeverage, ByCar, EsVenta;
+            public bool PayIsDirty, EsNocturna, OfreceLeverage, ByCar, EsVenta, EsPedido;
             public float WorkRequired, WorkDone, Noise, RepBonus, FabioBonus;
             public int[] PartTypes, PartCounts;
         }
@@ -140,7 +141,7 @@ namespace PuntoMuerto
                 OwnerNpcIndex = m.OwnerNpcIndex, VentaItem = (int)m.VentaItem, VentaCount = m.VentaCount,
                 Title = m.Title, Description = m.Description, ClientName = m.ClientName,
                 PayIsDirty = m.PayIsDirty, EsNocturna = m.EsNocturna, OfreceLeverage = m.OfreceLeverage,
-                ByCar = m.ByCar, EsVenta = m.EsVenta,
+                ByCar = m.ByCar, EsVenta = m.EsVenta, EsPedido = m.EsPedido,
                 WorkRequired = m.WorkRequired, WorkDone = m.WorkDone, Noise = m.Noise,
                 RepBonus = m.RepBonus, FabioBonus = m.FabioBonus,
                 PartTypes = new int[m.Parts.Count], PartCounts = new int[m.Parts.Count]
@@ -159,7 +160,7 @@ namespace PuntoMuerto
                 OwnerNpcIndex = w.OwnerNpcIndex, VentaItem = (ItemType)w.VentaItem, VentaCount = w.VentaCount,
                 Title = w.Title, Description = w.Description, ClientName = w.ClientName,
                 PayIsDirty = w.PayIsDirty, EsNocturna = w.EsNocturna, OfreceLeverage = w.OfreceLeverage,
-                ByCar = w.ByCar, EsVenta = w.EsVenta,
+                ByCar = w.ByCar, EsVenta = w.EsVenta, EsPedido = w.EsPedido,
                 WorkRequired = w.WorkRequired, WorkDone = w.WorkDone, Noise = w.Noise,
                 RepBonus = w.RepBonus, FabioBonus = w.FabioBonus
             };
@@ -324,12 +325,15 @@ namespace PuntoMuerto
         void BuyServerRpc(int item, int n)
         {
             var t = (ItemType)item;
-            int p = InventorySystem.PriceOf(t);
-            if (MetasManager.I != null && MetasManager.I.Reputacion >= 60f) p = Mathf.RoundToInt(p * 0.8f);
-            int costo = p * n;
             if (InventorySystem.I == null || GameManager.I == null) return;
-            if (InventorySystem.I.Used + n > InventorySystem.I.Capacity) return;
-            if (!GameManager.I.Spend(costo)) return;
+            bool turbio = InventorySystem.ZonaOf(t) == Zona.Turbio;
+            int p = InventorySystem.PriceOf(t);
+            // el descuento de reputación solo aplica al proveedor legal
+            if (!turbio && MetasManager.I != null && MetasManager.I.Reputacion >= 60f) p = Mathf.RoundToInt(p * 0.8f);
+            int costo = p * n;
+            if (!InventorySystem.I.CanFit(t, n)) return;
+            if (turbio && GameManager.I.DirtyMoney < costo) return;
+            if (!GameManager.I.Spend(costo, preferDirty: turbio)) return;
             InventorySystem.I.Add(t, n);
             GameEvents.Notify("Tu socio compró " + InventorySystem.Label(t) + " x" + n + " por $" + costo.ToString("N0"));
         }

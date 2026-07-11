@@ -13,7 +13,15 @@ namespace PuntoMuerto
 
     public enum MissionState { Pendiente, EnRecepcion, EnProgreso, Completada, Fallida }
 
-    public enum ItemType { Aceite, Llanta, Repuesto, Pintura, Gasolina, PiezaIlegal }
+    // Los índices EXISTENTES no se reordenan: el guardado y la red serializan por índice.
+    // Los ítems nuevos se agregan al final. 0..5 = almacén normal + la vieja pieza ilegal;
+    // 6..8 = repuestos legales nuevos; 9..13 = piezas del almacén turbio (patio).
+    public enum ItemType
+    {
+        Aceite = 0, Llanta = 1, Repuesto = 2, Pintura = 3, Gasolina = 4, PiezaIlegal = 5,
+        Filtro = 6, Bateria = 7, Pastillas = 8,
+        PlacasBlanco = 9, KitVIN = 10, Desbloqueo = 11, BujiasPot = 12, ECUTrucada = 13
+    }
 
     [System.Serializable]
     public struct PartReq
@@ -53,11 +61,15 @@ namespace PuntoMuerto
 
         // venta ambulante: el "cliente" te VENDE un lote (Pay = lo que pagas tú)
         public bool EsVenta;
+        // pedido: un comprador te COMPRA un lote de tu almacén (Pay = lo que te pagan a ti)
+        public bool EsPedido;
         public ItemType VentaItem;
         public int VentaCount;
 
         public Mission() { Id = nextId++; }
 
+        // venta (te venden) y pedido (te compran) son transacciones de mostrador, no encargos rastreados
+        public bool EsTransaccion => EsVenta || EsPedido;
         public bool EsIlegal => Type != MissionType.ClienteHonesto;
         public float Progress01 => WorkRequired <= 0f ? 1f : Mathf.Clamp01(WorkDone / WorkRequired);
     }

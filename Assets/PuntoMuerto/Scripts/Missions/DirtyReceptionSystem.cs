@@ -109,10 +109,12 @@ namespace PuntoMuerto
                         Dummy = pa.Dummy
                     });
                     pa.M.State = MissionState.EnRecepcion;
-                    GameEvents.Notify(pa.M.EsVenta
-                        ? "Alguien ofrece mercancía en la ventanilla trasera: " + pa.M.Title
-                        : "Alguien espera en la ventanilla trasera: " + pa.M.Title +
-                          " ($" + pa.M.Pay.ToString("N0") + " sucio)");
+                    GameEvents.Notify(
+                        pa.M.EsVenta ? "Ofrecen mercancía en la ventanilla: " + pa.M.Title
+                      : pa.M.EsPedido ? "Un comprador busca piezas en la ventanilla: " + pa.M.Title +
+                            " (paga $" + pa.M.Pay.ToString("N0") + " sucio)"
+                      : "Alguien espera en la ventanilla trasera: " + pa.M.Title +
+                            " ($" + pa.M.Pay.ToString("N0") + " sucio)");
                     Reflow();
                 }
             }
@@ -126,8 +128,9 @@ namespace PuntoMuerto
                     {
                         var w = Queue[i];
                         GameSync.MirrorDismiss(1, w.M.Id);
+                        bool eraEncargo = !w.M.EsTransaccion;
                         Dismiss(w);
-                        if (!w.M.EsVenta)
+                        if (eraEncargo)
                             MetasManager.I.CambiarFabio(-3f, "Dejaste plantado un encargo en la ventanilla");
                     }
                 }
@@ -138,7 +141,7 @@ namespace PuntoMuerto
         {
             if (Net.IsClientOnly)
             {
-                if (!w.M.EsVenta && BayManager.I.FreePatioSlotIndex() < 0)
+                if (!w.M.EsTransaccion && BayManager.I.FreePatioSlotIndex() < 0)
                 {
                     GameEvents.Notify("No hay espacio en el patio. Termina un encargo primero.");
                     return;
@@ -160,12 +163,34 @@ namespace PuntoMuerto
 
         bool DoAccept(WaitingClient w)
         {
+            if (w.M.EsPedido)
+            {
+                if (Net.IsAuthority)
+                {
+                    if (!InventorySystem.I.Has(w.M.VentaItem, w.M.VentaCount))
+                    {
+                        GameEvents.Notify("No tienes " + InventorySystem.Label(w.M.VentaItem) + " x" +
+                            w.M.VentaCount + " en la bodega.");
+                        return false;
+                    }
+                    InventorySystem.I.Remove(w.M.VentaItem, w.M.VentaCount);
+                    GameManager.I.AddMoney(w.M.Pay, true); // pago sucio
+                    MetasManager.I.CambiarFabio(1f);
+                }
+                Queue.Remove(w);
+                if (w.Dummy != null) w.Dummy.Leave(BackExit);
+                GameEvents.Notify("Vendiste " + InventorySystem.Label(w.M.VentaItem) + " x" + w.M.VentaCount +
+                    " por $" + w.M.Pay.ToString("N0") + " (sucio).");
+                Reflow();
+                return true;
+            }
+
             if (w.M.EsVenta)
             {
                 if (Net.IsAuthority)
                 {
-                    if (InventorySystem.I.Used + w.M.VentaCount > InventorySystem.I.Capacity)
-                    { GameEvents.Notify("No cabe en el almacén."); return false; }
+                    if (!InventorySystem.I.CanFit(w.M.VentaItem, w.M.VentaCount))
+                    { GameEvents.Notify("No cabe en la bodega del patio."); return false; }
                     if (!GameManager.I.Spend(w.M.Pay, preferDirty: true))
                     { GameEvents.Notify("No te alcanza: $" + w.M.Pay.ToString("N0")); return false; }
                     InventorySystem.I.Add(w.M.VentaItem, w.M.VentaCount);
@@ -173,7 +198,7 @@ namespace PuntoMuerto
                 Queue.Remove(w);
                 if (w.Dummy != null) w.Dummy.Leave(BackExit);
                 GameEvents.Notify("Compraste el lote: " + InventorySystem.Label(w.M.VentaItem) + " x" +
-                    w.M.VentaCount + " por $" + w.M.Pay.ToString("N0") + ". Véndelas por teléfono.");
+                    w.M.VentaCount + " por $" + w.M.Pay.ToString("N0") + ".");
                 Reflow();
                 return true;
             }

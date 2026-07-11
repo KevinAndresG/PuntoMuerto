@@ -36,11 +36,24 @@ namespace PuntoMuerto
             foreach (var w in q.ToList())
             {
                 var wc = w;
-                if (w.M.EsVenta)
+                if (w.M.EsPedido)
+                {
+                    bool tienes = InventorySystem.I.Has(w.M.VentaItem, w.M.VentaCount);
+                    UIRoot.CreateText(panel,
+                        w.M.ClientName + " — " + w.M.Title + "\nTe paga: $" + w.M.Pay.ToString("N0") +
+                        " (sucio)   (bodega: " + InventorySystem.I.Count(w.M.VentaItem) + ")" +
+                        (tienes ? "" : "  (¡no te alcanza!)"),
+                        18, tienes ? new Color(0.85f, 0.75f, 0.5f) : new Color(1f, 0.7f, 0.5f),
+                        new Vector2(0f, 1f), new Vector2(26f, -y), new Vector2(560f, 54f));
+                    UIRoot.CreateButton(panel, "Vender", new Vector2(1f, 1f), new Vector2(-160f, -y),
+                        new Vector2(130f, 46f), () => { Close(); DirtyReceptionSystem.I.Accept(wc); },
+                        new Color(0.35f, 0.3f, 0.15f), 18);
+                }
+                else if (w.M.EsVenta)
                 {
                     UIRoot.CreateText(panel,
                         w.M.ClientName + " — " + w.M.Title + "\nPide: $" + w.M.Pay.ToString("N0") +
-                        "   (se revenden por teléfono a $250-450 c/u)",
+                        "   (a la bodega del patio)",
                         18, new Color(0.85f, 0.75f, 0.5f),
                         new Vector2(0f, 1f), new Vector2(26f, -y), new Vector2(560f, 54f));
                     UIRoot.CreateButton(panel, "Comprar", new Vector2(1f, 1f), new Vector2(-160f, -y),

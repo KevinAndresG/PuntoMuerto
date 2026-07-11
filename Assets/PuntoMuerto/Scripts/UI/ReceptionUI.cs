@@ -34,7 +34,20 @@ namespace PuntoMuerto
             foreach (var w in q.ToList())
             {
                 var wc = w;
-                if (w.M.EsVenta)
+                if (w.M.EsPedido)
+                {
+                    bool tienes = InventorySystem.I.Has(w.M.VentaItem, w.M.VentaCount);
+                    UIRoot.CreateText(panel,
+                        w.M.ClientName + " — " + w.M.Title + "\nTe paga: $" + w.M.Pay.ToString("N0") +
+                        "   (tienes " + InventorySystem.I.Count(w.M.VentaItem) + ")" +
+                        (tienes ? "" : "  (¡no te alcanza el stock!)"),
+                        18, tienes ? new Color(0.7f, 0.9f, 0.7f) : new Color(1f, 0.75f, 0.5f),
+                        new Vector2(0f, 1f), new Vector2(26f, -y), new Vector2(560f, 54f));
+                    UIRoot.CreateButton(panel, "Vender", new Vector2(1f, 1f), new Vector2(-160f, -y),
+                        new Vector2(130f, 46f), () => { Close(); ReceptionSystem.I.Accept(wc); },
+                        new Color(0.2f, 0.4f, 0.3f), 18);
+                }
+                else if (w.M.EsVenta)
                 {
                     UIRoot.CreateText(panel,
                         w.M.ClientName + " — " + w.M.Title + "\nPide: $" + w.M.Pay.ToString("N0") +
@@ -66,7 +79,7 @@ namespace PuntoMuerto
             }
 
             UIRoot.CreateText(panel,
-                "Inventario: " + ResumenInventario() + "   (almacén " + InventorySystem.I.Used + "/" + InventorySystem.I.Capacity + ")",
+                "Almacén: " + ResumenInventario() + "   (" + InventorySystem.I.UsedNormal + "/" + InventorySystem.I.CapacityNormal + ")",
                 16, new Color(0.7f, 0.7f, 0.72f), new Vector2(0.5f, 0f), new Vector2(0f, 80f),
                 new Vector2(820f, 24f), TextAnchor.MiddleCenter);
 
@@ -93,9 +106,11 @@ namespace PuntoMuerto
             return "Aceite " + inv.Count(ItemType.Aceite) +
                 " · Llantas " + inv.Count(ItemType.Llanta) +
                 " · Repuestos " + inv.Count(ItemType.Repuesto) +
+                " · Filtro " + inv.Count(ItemType.Filtro) +
+                " · Batería " + inv.Count(ItemType.Bateria) +
+                " · Pastillas " + inv.Count(ItemType.Pastillas) +
                 " · Pintura " + inv.Count(ItemType.Pintura) +
-                " · Gasolina " + inv.Count(ItemType.Gasolina) +
-                " · P.ilegales " + inv.Count(ItemType.PiezaIlegal);
+                " · Gasolina " + inv.Count(ItemType.Gasolina);
         }
 
         void Close()

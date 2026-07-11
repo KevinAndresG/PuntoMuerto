@@ -1,42 +1,39 @@
+using System.Linq;
 using UnityEngine;
 
 namespace PuntoMuerto
 {
-    /// <summary>Estantería del taller: muestra el stock de cada ítem y abre el catálogo para comprar rápido.</summary>
-    public class ShelfDisplay : MonoBehaviour, IInteractable
+    /// <summary>
+    /// Estantería/bodega: muestra en vivo el stock de su ZONA (Normal = repuestos del garaje,
+    /// Turbio = piezas del patio). Solo display — la compra está centralizada en el PC de la oficina.
+    /// </summary>
+    public class ShelfDisplay : MonoBehaviour
     {
-        static readonly ItemType[] Items =
-        {
-            ItemType.Aceite, ItemType.Llanta, ItemType.Repuesto,
-            ItemType.Pintura, ItemType.Gasolina, ItemType.PiezaIlegal
-        };
+        public Zona Zona = Zona.Normal;
 
+        ItemType[] items;
         TextMesh[] labels;
         float refreshAt;
 
-        public string Prompt => "Estantería: ver stock / comprar repuestos";
-        public bool CanInteract => true;
-
         void Start()
         {
-            // etiquetas generadas en runtime (nada que serializar en escena)
-            labels = new TextMesh[Items.Length];
-            for (int i = 0; i < Items.Length; i++)
+            items = InventorySystem.ItemsOf(Zona).ToArray();
+            labels = new TextMesh[items.Length];
+            int rows = Mathf.CeilToInt(items.Length / 2f);
+            for (int i = 0; i < items.Length; i++)
             {
-                var go = new GameObject("Label_" + Items[i]);
+                var go = new GameObject("Label_" + items[i]);
                 go.transform.SetParent(transform, false);
-                // dos columnas x tres filas sobre el frente de la estantería
+                // dos columnas; filas de arriba hacia abajo, repartidas en el alto de la estantería
                 float col = i % 2 == 0 ? -0.75f : 0.75f;
-                float row = 1.9f - (i / 2) * 0.62f;
+                float row = 2.05f - (i / 2) * (2.4f / Mathf.Max(1, rows));
                 go.transform.localPosition = new Vector3(col, row, -0.62f);
-                // hereda el -90° del padre (frente local -z → +x): sin voltear, el texto se lee derecho.
                 go.transform.localRotation = Quaternion.identity;
-                go.transform.localScale = Vector3.one * 0.035f;
+                go.transform.localScale = Vector3.one * 0.033f;
                 var tm = go.AddComponent<TextMesh>();
                 tm.fontSize = 56;
                 tm.anchor = TextAnchor.MiddleCenter;
                 tm.alignment = TextAlignment.Center;
-                tm.color = new Color(0.95f, 0.92f, 0.8f);
                 TextStyle.Apply(tm);
                 labels[i] = tm;
             }
@@ -44,34 +41,14 @@ namespace PuntoMuerto
 
         void Update()
         {
-            if (Time.time < refreshAt || InventorySystem.I == null) return;
+            if (Time.time < refreshAt || InventorySystem.I == null || labels == null) return;
             refreshAt = Time.time + 0.5f;
-            for (int i = 0; i < Items.Length; i++)
+            bool turbio = Zona == Zona.Turbio;
+            for (int i = 0; i < items.Length; i++)
             {
-                string name = ShortLabel(Items[i]);
-                labels[i].text = name + "\n" + InventorySystem.I.Count(Items[i]);
-                labels[i].color = Items[i] == ItemType.PiezaIlegal
-                    ? new Color(0.9f, 0.5f, 0.4f) : new Color(0.95f, 0.92f, 0.8f);
+                labels[i].text = InventorySystem.ShortLabel(items[i]) + "\n" + InventorySystem.I.Count(items[i]);
+                labels[i].color = turbio ? new Color(0.92f, 0.55f, 0.42f) : new Color(0.95f, 0.92f, 0.8f);
             }
-        }
-
-        static string ShortLabel(ItemType t)
-        {
-            switch (t)
-            {
-                case ItemType.Aceite: return "ACEITE";
-                case ItemType.Llanta: return "LLANTAS";
-                case ItemType.Repuesto: return "REPUESTOS";
-                case ItemType.Pintura: return "PINTURA";
-                case ItemType.Gasolina: return "GASOLINA";
-                default: return "P. ILEGAL";
-            }
-        }
-
-        public void Interact(PlayerInteraction p)
-        {
-            var ui = Object.FindFirstObjectByType<SupplierUI>();
-            if (ui != null) ui.Open();
         }
     }
 }

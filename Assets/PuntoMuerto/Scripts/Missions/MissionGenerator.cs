@@ -83,8 +83,11 @@ namespace PuntoMuerto
                 if (ReceptionSystem.I != null && ReceptionSystem.I.Queue.Count < ReceptionSystem.I.MaxQueue &&
                     Random.value < 0.75f)
                 {
-                    // a veces llega un vendedor ambulante a pie en vez de un cliente
-                    if (Random.value < 0.22f) ScheduleVendor(hour);
+                    // a veces en vez de un cliente llega un vendedor (te vende repuestos) o
+                    // un comprador (te compra repuestos de tu almacén)
+                    float r = Random.value;
+                    if (r < 0.18f) ScheduleVendor(hour);
+                    else if (r < 0.38f) ScheduleBuyer(hour);
                     else ScheduleHonestClient(MetasManager.I.Reputacion >= 30f, hour);
                 }
             }
@@ -99,8 +102,11 @@ namespace PuntoMuerto
                 if (DirtyReceptionSystem.I != null && DirtyReceptionSystem.I.CanReceive &&
                     Random.value < (night ? 0.85f : 0.5f))
                 {
-                    // a veces llega alguien a pie a VENDER piezas calientes
-                    var dm = Random.value < 0.3f ? GenerateDirtyVendor() : GenerateDirtyClient();
+                    // a pie puede llegar quien te VENDE piezas o quien te las COMPRA; en carro, trabajo sucio
+                    float r = Random.value;
+                    Mission dm = r < 0.25f ? GenerateDirtyVendor()
+                        : r < 0.5f ? GenerateDirtyBuyer()
+                        : GenerateDirtyClient();
                     DirtyReceptionSystem.I.BeginArrival(dm,
                         new Color(Random.Range(0.15f, 0.4f), Random.Range(0.15f, 0.4f), Random.Range(0.15f, 0.4f)));
                 }
@@ -231,6 +237,41 @@ namespace PuntoMuerto
             schedule.Add(new ScheduledClient { Mission = m, Hour = atHour });
         }
 
+        // lo que un comprador legal te puede pedir (de tu almacén normal)
+        static readonly (ItemType t, int nMin, int nMax)[] BuyerWants =
+        {
+            (ItemType.Llanta, 4, 4), (ItemType.Repuesto, 1, 3), (ItemType.Aceite, 2, 4),
+            (ItemType.Filtro, 1, 2), (ItemType.Pastillas, 1, 2), (ItemType.Bateria, 1, 1)
+        };
+
+        static readonly string[] BuyerNames =
+        {
+            "Un cliente apurado", "El de la ferretería", "Doña Marta", "Un taxista",
+            "El vecino del camión", "Una señora"
+        };
+
+        /// <summary>Comprador legal: te COMPRA un lote de tu almacén (pagas con lo que ya tienes en stock).</summary>
+        void ScheduleBuyer(float atHour)
+        {
+            var want = BuyerWants[Random.Range(0, BuyerWants.Length)];
+            int n = Random.Range(want.nMin, want.nMax + 1);
+            int market = InventorySystem.PriceOf(want.t) * n;
+            int pay = Mathf.RoundToInt(market * Random.Range(1.35f, 1.7f)); // margen para ti
+            var m = new Mission
+            {
+                Type = MissionType.ClienteHonesto,
+                EsPedido = true,
+                VentaItem = want.t,
+                VentaCount = n,
+                Pay = pay,
+                Title = "Compra " + InventorySystem.Label(want.t) + " x" + n,
+                Description = "Quiere llevarse repuestos de tu almacén. Buen dinero si los tienes.",
+                ClientName = BuyerNames[Random.Range(0, BuyerNames.Length)],
+                ByCar = false
+            };
+            schedule.Add(new ScheduledClient { Mission = m, Hour = atHour });
+        }
+
         void SpawnClientArrival(Mission m)
         {
             if (ReceptionSystem.I == null || !ReceptionSystem.I.CanReceive) return; // recepción llena
@@ -283,20 +324,46 @@ namespace PuntoMuerto
             return m;
         }
 
-        /// <summary>Tipo a pie que vende piezas calientes (se revenden por teléfono a 250-450 c/u).</summary>
+        /// <summary>Tipo a pie que te VENDE un lote de piezas turbias (baratas para revender/usar).</summary>
         Mission GenerateDirtyVendor()
         {
-            int n = Random.Range(2, 5);
+            var turbios = InventorySystem.ItemsOf(Zona.Turbio, soloComprables: true).ToArray();
+            var t = turbios[Random.Range(0, turbios.Length)];
+            int n = Random.Range(1, 4);
+            // te lo dejan por debajo del precio de mercado turbio (margen para ti al revender)
+            int pay = Mathf.RoundToInt(InventorySystem.PriceOf(t) * n * Random.Range(0.55f, 0.8f));
             return new Mission
             {
                 Type = MissionType.Piezas,
                 EsVenta = true,
-                VentaItem = ItemType.PiezaIlegal,
+                VentaItem = t,
                 VentaCount = n,
-                Pay = n * Random.Range(120, 181),
+                Pay = pay,
                 PayIsDirty = true,
-                Title = "Ofrece " + n + " piezas calientes",
-                Description = "Sin preguntas. Se revenden bien por teléfono.",
+                Title = "Ofrece " + InventorySystem.Label(t) + " x" + n,
+                Description = "Sin preguntas. Barato para lo que valen.",
+                ClientName = DirtyNames[Random.Range(0, DirtyNames.Length)],
+                ByCar = false
+            };
+        }
+
+        /// <summary>Comprador turbio: te COMPRA piezas/dispositivos de la bodega del patio (paga sucio).</summary>
+        Mission GenerateDirtyBuyer()
+        {
+            var turbios = InventorySystem.ItemsOf(Zona.Turbio, soloComprables: true).ToArray();
+            var t = turbios[Random.Range(0, turbios.Length)];
+            int n = Random.Range(1, 4);
+            int pay = Mathf.RoundToInt(InventorySystem.PriceOf(t) * n * Random.Range(1.6f, 2.3f));
+            return new Mission
+            {
+                Type = MissionType.Piezas,
+                EsPedido = true,
+                VentaItem = t,
+                VentaCount = n,
+                Pay = pay,
+                PayIsDirty = true,
+                Title = "Busca " + InventorySystem.Label(t) + " x" + n,
+                Description = "Paga bien por lo que tengas en la bodega. Sin recibo.",
                 ClientName = DirtyNames[Random.Range(0, DirtyNames.Length)],
                 ByCar = false
             };
@@ -307,7 +374,7 @@ namespace PuntoMuerto
             float c = MetasManager.I.Fabio;
             int tier = UpgradeSystem.I.TallerTier;
             var opciones = new List<MissionType> { MissionType.Recoleccion, MissionType.Auto };
-            if (c >= 40f) opciones.Add(MissionType.Piezas);
+            if (c >= 20f) opciones.Add(MissionType.Piezas);
             if (c >= 60f && tier >= 2) opciones.Add(MissionType.Especial);
             var tipo = opciones[Random.Range(0, opciones.Count)];
 

@@ -119,9 +119,9 @@ namespace PuntoMuerto
                         Dummy = pa.Dummy
                     });
                     pa.M.State = MissionState.EnRecepcion;
-                    if (!pa.M.EsVenta) MissionSystem.I.Add(pa.M);
-                    GameEvents.Notify(pa.M.EsVenta
-                        ? "Llegó " + pa.M.ClientName + " a recepción: " + pa.M.Title + " (pide $" + pa.M.Pay.ToString("N0") + ")"
+                    if (!pa.M.EsTransaccion) MissionSystem.I.Add(pa.M);
+                    GameEvents.Notify(pa.M.EsTransaccion
+                        ? "Llegó " + pa.M.ClientName + " a recepción: " + pa.M.Title + " (" + pa.M.Pay.ToString("N0") + ")"
                         : "Llegó " + pa.M.ClientName + " a recepción: " + pa.M.Title + " ($" + pa.M.Pay.ToString("N0") + ")");
                     Reflow();
                 }
@@ -136,8 +136,10 @@ namespace PuntoMuerto
                     {
                         var w = Queue[i];
                         GameSync.MirrorDismiss(0, w.M.Id);
+                        bool eraCliente = !w.M.EsTransaccion;
                         Dismiss(w);
-                        MetasManager.I.CambiarReputacion(-1f, w.M.ClientName + " se cansó de esperar y se fue de mal humor");
+                        if (eraCliente)
+                            MetasManager.I.CambiarReputacion(-1f, w.M.ClientName + " se cansó de esperar y se fue de mal humor");
                     }
                 }
             }
@@ -148,7 +150,7 @@ namespace PuntoMuerto
             if (Net.IsClientOnly)
             {
                 // prechequeo local con el estado sincronizado, luego el host ejecuta
-                if (!w.M.EsVenta && BayManager.I.FreeSlotIndex() < 0)
+                if (!w.M.EsTransaccion && BayManager.I.FreeSlotIndex() < 0)
                 {
                     GameEvents.Notify("No hay slots libres en el taller. Termina un carro o mejora las bahías.");
                     return;
@@ -170,11 +172,32 @@ namespace PuntoMuerto
 
         bool DoAccept(WaitingClient w)
         {
+            if (w.M.EsPedido)
+            {
+                if (Net.IsAuthority)
+                {
+                    if (!InventorySystem.I.Has(w.M.VentaItem, w.M.VentaCount))
+                    {
+                        GameEvents.Notify("No tienes " + InventorySystem.Label(w.M.VentaItem) + " x" +
+                            w.M.VentaCount + " para venderle.");
+                        return false;
+                    }
+                    InventorySystem.I.Remove(w.M.VentaItem, w.M.VentaCount);
+                    GameManager.I.AddMoney(w.M.Pay, w.M.PayIsDirty);
+                }
+                Queue.Remove(w);
+                if (w.Dummy != null) w.Dummy.Leave();
+                GameEvents.Notify("Vendiste " + InventorySystem.Label(w.M.VentaItem) + " x" + w.M.VentaCount +
+                    " por $" + w.M.Pay.ToString("N0"));
+                Reflow();
+                return true;
+            }
+
             if (w.M.EsVenta)
             {
                 if (Net.IsAuthority)
                 {
-                    if (InventorySystem.I.Used + w.M.VentaCount > InventorySystem.I.Capacity)
+                    if (!InventorySystem.I.CanFit(w.M.VentaItem, w.M.VentaCount))
                     { GameEvents.Notify("No cabe en el almacén."); return false; }
                     if (!GameManager.I.Spend(w.M.Pay))
                     { GameEvents.Notify("No te alcanza: $" + w.M.Pay.ToString("N0")); return false; }
@@ -226,7 +249,7 @@ namespace PuntoMuerto
         void DoReject(WaitingClient w)
         {
             Dismiss(w);
-            if (!w.M.EsVenta)
+            if (!w.M.EsTransaccion)
             {
                 MetasManager.I.CambiarReputacion(-0.5f);
                 GameEvents.Notify(w.M.ClientName + ": \"¿Y ahora quién me arregla el carro?\" — se fue molesto.");
@@ -249,7 +272,7 @@ namespace PuntoMuerto
                 if (TrafficManager.I != null) TrafficManager.I.DriveOff(w.WaitCar);
                 else Destroy(w.WaitCar);
             }
-            if (!w.M.EsVenta) MissionSystem.I.Reject(w.M);
+            if (!w.M.EsTransaccion) MissionSystem.I.Reject(w.M);
             Reflow();
         }
 

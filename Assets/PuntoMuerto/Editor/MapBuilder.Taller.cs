@@ -38,7 +38,7 @@ namespace PuntoMuerto.EditorTools
             Box("ParedDerDintel", taller, new Vector3(47.8f, 4.1f, -15f), new Vector3(0.4f, 1.8f, 4.2f), "MuroVerde");
             Box("MarcoPuertaOfi1", taller, new Vector3(47.8f, 1.6f, -13.05f), new Vector3(0.5f, 3.2f, 0.18f), "Madera");
             Box("MarcoPuertaOfi2", taller, new Vector3(47.8f, 1.6f, -16.95f), new Vector3(0.5f, 3.2f, 0.18f), "Madera");
-            Text3D("OFICINA", taller, new Vector3(47.4f, 3.5f, -15f), 0.05f, new Color(0.95f, 0.9f, 0.7f), -90f);
+            Text3D("OFICINA", taller, new Vector3(47.4f, 3.5f, -15f), 0.05f, new Color(0.95f, 0.9f, 0.7f), 90f);
             Box("Techo", taller, new Vector3(32.2f, wallH + 0.15f, -15.4f), new Vector3(32f, 0.3f, 11.6f), "Lamina");
             // pilares del frente (3 aberturas con cortina)
             Box("Pilar1", taller, new Vector3(22.5f, 2.2f, -10f), new Vector3(0.9f, 4.4f, 0.6f), "Ladrillo");
@@ -80,18 +80,24 @@ namespace PuntoMuerto.EditorTools
             for (int i = 0; i < 3; i++)
                 Box("MarcaBahia", taller, new Vector3(26.5f + i * 8.5f, 0.13f, -16f), new Vector3(2.6f, 0.02f, 5f), "LineaVia");
 
-            // elevador decorativo en bahía 1 (el kit hidráulico llega con la mejora)
-            Box("ElevPoste1", taller, new Vector3(24.7f, 1.1f, -16f), new Vector3(0.3f, 2.2f, 0.3f), "Metal");
-            Box("ElevPoste2", taller, new Vector3(28.3f, 1.1f, -16f), new Vector3(0.3f, 2.2f, 0.3f), "Metal");
+            // elevador decorativo en las 3 bahías (el kit hidráulico llega con la mejora)
+            for (int i = 0; i < 3; i++)
+            {
+                float bx = 26.5f + i * 8.5f;
+                Box("ElevPoste1", taller, new Vector3(bx - 1.8f, 1.1f, -16f), new Vector3(0.3f, 2.2f, 0.3f), "Metal");
+                Box("ElevPoste2", taller, new Vector3(bx + 1.8f, 1.1f, -16f), new Vector3(0.3f, 2.2f, 0.3f), "Metal");
+            }
 
             // ---- botón de pared ABIERTO/CERRADO en el pilar de recepción ----
             // ShopSign crea en runtime la lámpara verde/roja y el cartel flotante sobre el pilar.
-            // botón montado en la cara INTERIOR del Pilar4 (z<-10 = dentro del garaje), mirando al interior
-            var shopSign = Empty("BotonTaller", taller, new Vector3(48f, 1.5f, -10.55f));
-            Box("BotonCaja", shopSign.transform, new Vector3(48f, 1.5f, -10.48f), new Vector3(0.45f, 0.62f, 0.14f), "MetalOscuro", 0f, false);
-            Box("BotonTapa", shopSign.transform, new Vector3(48f, 1.5f, -10.57f), new Vector3(0.28f, 0.28f, 0.08f), "LaminaRoja", 0f, false);
+            // Montado en la cara IZQUIERDA del Pilar4 (mira a -x, hacia el interior del garaje donde
+            // está el jugador). Antes iba en la cara -z con la tapa oculta detrás de la caja y medio
+            // enterrada en la pared oeste de la oficina: se accionaba pero no se veía.
+            var shopSign = Empty("BotonTaller", taller, new Vector3(47.4f, 1.5f, -10f));
+            Box("BotonCaja", shopSign.transform, new Vector3(47.45f, 1.5f, -10f), new Vector3(0.14f, 0.62f, 0.45f), "MetalOscuro", 0f, false);
+            Box("BotonTapa", shopSign.transform, new Vector3(47.36f, 1.5f, -10f), new Vector3(0.08f, 0.28f, 0.28f), "LaminaRoja", 0f, false);
             var signCol = shopSign.AddComponent<BoxCollider>();
-            signCol.size = new Vector3(0.8f, 1f, 0.6f);
+            signCol.size = new Vector3(0.7f, 1.1f, 0.9f);
             shopSign.AddComponent<PuntoMuerto.ShopSign>();
             // ancla fija del cartel ABIERTO/CERRADO: centrado sobre el frente del taller (x=35), alto y hacia la calle
             Empty("CartelEstadoAnchor", taller, new Vector3(35f, 8.2f, -9.8f));
@@ -105,7 +111,7 @@ namespace PuntoMuerto.EditorTools
             Box("BancaEsperaPata2", sala, new Vector3(17.3f, 0.18f, -17.8f), new Vector3(0.5f, 0.36f, 2.8f), "MetalOscuro");
             Box("MesitaSala", sala, new Vector3(19.6f, 0.3f, -15.5f), new Vector3(0.9f, 0.6f, 0.9f), "Madera");
             Cyl("MateraSala", sala, new Vector3(17.3f, 0.5f, -19.9f), new Vector3(0.6f, 0.5f, 0.6f), "LaminaVerde");
-            Text3D("SALA DE ESPERA", sala, new Vector3(16.5f, 3.3f, -15.5f), 0.05f, new Color(0.95f, 0.9f, 0.7f), 90f);
+            Text3D("SALA DE ESPERA", sala, new Vector3(16.5f, 3.3f, -15.5f), 0.05f, new Color(0.95f, 0.9f, 0.7f), -90f);
             var salaLight = new GameObject("LuzSala").AddComponent<Light>();
             salaLight.transform.SetParent(sala, false);
             salaLight.transform.position = new Vector3(19f, 2.9f, -15.5f);
@@ -127,26 +133,10 @@ namespace PuntoMuerto.EditorTools
             var pcRec = Box("PCRecepcion", taller, new Vector3(46.3f, 1.42f, -12f), new Vector3(0.65f, 0.5f, 0.12f), "MetalOscuro");
             pcRec.isStatic = false;
             Box("PCRecepcionScreen", taller, new Vector3(46.3f, 1.42f, -11.93f), new Vector3(0.55f, 0.4f, 0.02f), "VentanaLuz", 0f, false);
-            pcRec.AddComponent<PuntoMuerto.DeskComputer>();
+            // PCRecepcion es solo decoración: la compra se centraliza en el PC de la oficina.
 
-            // estantería de repuestos con contadores en vivo (pared izquierda del garaje)
-            var shelf = Empty("Estanteria", taller, new Vector3(24.3f, 0f, -19f));
-            shelf.transform.rotation = Quaternion.Euler(0f, -90f, 0f); // frente (local -z) hacia el interior del garaje (+x)
-            Box("EstanteMarco", shelf.transform, new Vector3(24.3f, 1.25f, -19f), new Vector3(0.6f, 2.5f, 3.4f), "Madera");
-            for (int r = 0; r < 3; r++)
-                Box("Repisa", shelf.transform, new Vector3(24.55f, 0.7f + r * 0.62f, -19f), new Vector3(0.5f, 0.06f, 3.2f), "MetalOscuro");
-            // cajitas de colores por tipo de repuesto
-            string[] boxMats = { "Oxido", "MetalOscuro", "Metal", "LaminaRoja", "LaminaVerde", "Madera" };
-            for (int b = 0; b < 6; b++)
-            {
-                float col = b % 2 == 0 ? -0.8f : 0.8f;
-                float row = 0.85f + (b / 2) * 0.62f;
-                Box("CajaRepuesto", shelf.transform, new Vector3(24.55f, row, -19f + col), new Vector3(0.45f, 0.35f, 0.9f), boxMats[b]);
-            }
-            var shelfCol = shelf.AddComponent<BoxCollider>();
-            shelfCol.center = new Vector3(0f, 1.25f, 0f);
-            shelfCol.size = new Vector3(3.6f, 2.5f, 0.9f);
-            shelf.AddComponent<PuntoMuerto.ShelfDisplay>();
+            // estantería del almacén NORMAL con contadores en vivo (pared izquierda del garaje)
+            BuildShelf(taller, "Estanteria", new Vector3(24.3f, 0f, -19f), PuntoMuerto.Zona.Normal);
 
             // ---- letrero neón ----
             var signRoot = Empty("LetreroNeon", taller, Vector3.zero);
@@ -216,6 +206,31 @@ namespace PuntoMuerto.EditorTools
             BuildMejoras(taller);
         }
 
+        /// <summary>Estantería con contadores en vivo. Se usa igual para el almacén normal (garaje) y
+        /// la bodega turbia (patio): mismas primitivas, solo cambia el origen y la zona. El frente
+        /// (local -z, tras rotar -90) mira hacia +x, donde se para el jugador a leer el stock.</summary>
+        static void BuildShelf(Transform taller, string name, Vector3 o, PuntoMuerto.Zona zona)
+        {
+            var shelf = Empty(name, taller, o);
+            shelf.transform.rotation = Quaternion.Euler(0f, -90f, 0f);
+            Box("EstanteMarco", shelf.transform, o + new Vector3(0f, 1.25f, 0f), new Vector3(0.6f, 2.5f, 3.4f), "Madera");
+            for (int r = 0; r < 3; r++)
+                Box("Repisa", shelf.transform, o + new Vector3(0.25f, 0.7f + r * 0.62f, 0f), new Vector3(0.5f, 0.06f, 3.2f), "MetalOscuro");
+            string[] boxMats = zona == PuntoMuerto.Zona.Turbio
+                ? new[] { "Oxido", "MetalOscuro", "LaminaRoja", "Metal", "MetalOscuro", "Oxido" }
+                : new[] { "Oxido", "MetalOscuro", "Metal", "LaminaRoja", "LaminaVerde", "Madera" };
+            for (int b = 0; b < 6; b++)
+            {
+                float col = b % 2 == 0 ? -0.8f : 0.8f;
+                float row = 0.85f + (b / 2) * 0.62f;
+                Box("CajaRepuesto", shelf.transform, o + new Vector3(0.25f, row, col), new Vector3(0.45f, 0.35f, 0.9f), boxMats[b]);
+            }
+            var shelfCol = shelf.AddComponent<BoxCollider>();
+            shelfCol.center = new Vector3(0f, 1.25f, 0f);
+            shelfCol.size = new Vector3(3.6f, 2.5f, 0.9f);
+            shelf.AddComponent<PuntoMuerto.ShelfDisplay>().Zona = zona;
+        }
+
         /// <summary>Cortina enrollable de una abertura del frente (rodillo + panel que anima GarageDoor).</summary>
         static void BuildGarageDoor(Transform taller, int idx, float x0, float x1)
         {
@@ -273,6 +288,11 @@ namespace PuntoMuerto.EditorTools
             Box("BancaSucia", taller, new Vector3(53.2f, 0.42f, -27f), new Vector3(2.8f, 0.12f, 0.6f), "Madera", 90f);
             Box("BancaSuciaPata", taller, new Vector3(53.2f, 0.18f, -27f), new Vector3(2.6f, 0.36f, 0.5f), "MetalOscuro", 90f);
             Box("CajaBancaSucia", taller, new Vector3(53f, 0.4f, -30.5f), new Vector3(0.8f, 0.8f, 0.8f), "Madera", 20f);
+
+            // bodega del negocio TURBIO: estantería con el stock de piezas/dispositivos, en el patio,
+            // exclusiva de esta zona. Solo display; la compra turbia va por el PC de la oficina.
+            BuildShelf(taller, "BodegaTurbia", new Vector3(36f, 0f, -31f), PuntoMuerto.Zona.Turbio);
+            Text3D("BODEGA", taller, new Vector3(36f, 2.75f, -31f), 0.05f, new Color(0.9f, 0.55f, 0.35f), -90f);
         }
 
         /// <summary>Kits visuales de cada mejora, inactivos hasta comprarla (UpgradeSystem.ReapplySceneEffects).</summary>
@@ -280,12 +300,16 @@ namespace PuntoMuerto.EditorTools
         {
             var mejoras = Empty("Mejoras", taller, Vector3.zero).transform;
 
-            // elevador hidráulico (bahía 1)
+            // elevador hidráulico (las 3 bahías; un solo kit que la mejora activa entero)
             var elev = Empty("ElevadorKit", mejoras, Vector3.zero);
-            Box("ElevRiel1", elev.transform, new Vector3(25.9f, 0.3f, -16f), new Vector3(0.35f, 0.6f, 4.4f), "LaminaRoja");
-            Box("ElevRiel2", elev.transform, new Vector3(27.1f, 0.3f, -16f), new Vector3(0.35f, 0.6f, 4.4f), "LaminaRoja");
-            Box("ElevTravesano", elev.transform, new Vector3(26.5f, 2.3f, -16f), new Vector3(3.9f, 0.25f, 0.3f), "LaminaRoja");
-            Box("ElevMotor", elev.transform, new Vector3(24.6f, 0.45f, -14f), new Vector3(0.7f, 0.9f, 0.7f), "MetalOscuro");
+            for (int i = 0; i < 3; i++)
+            {
+                float bx = 26.5f + i * 8.5f;
+                Box("ElevRiel1", elev.transform, new Vector3(bx - 0.6f, 0.3f, -16f), new Vector3(0.35f, 0.6f, 4.4f), "LaminaRoja");
+                Box("ElevRiel2", elev.transform, new Vector3(bx + 0.6f, 0.3f, -16f), new Vector3(0.35f, 0.6f, 4.4f), "LaminaRoja");
+                Box("ElevTravesano", elev.transform, new Vector3(bx, 2.3f, -16f), new Vector3(3.9f, 0.25f, 0.3f), "LaminaRoja");
+                Box("ElevMotor", elev.transform, new Vector3(bx - 1.9f, 0.45f, -14f), new Vector3(0.7f, 0.9f, 0.7f), "MetalOscuro");
+            }
             elev.SetActive(false);
 
             // gabinete de herramientas

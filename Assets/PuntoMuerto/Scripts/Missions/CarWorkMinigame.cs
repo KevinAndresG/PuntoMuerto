@@ -52,6 +52,14 @@ namespace PuntoMuerto
         Vector3 pilePoint;
         bool finishing;
 
+        // elevador hidráulico (mejora): sube el carro en la bahía 1 para el trabajo bajo chasis
+        bool onLift;
+        float liftGroundY;
+        float liftT;
+        const float LiftHeight = 1.15f;
+        readonly List<GameObject> liftArms = new List<GameObject>();
+        float durScale = 1f;   // el elevador agiliza el trabajo (pasos más cortos)
+
         // ---------- arranque ----------
 
         public static void Begin(Mission m, Transform carT, RepairStation st)
@@ -75,12 +83,29 @@ namespace PuntoMuerto
                 : (station != null ? station.transform.position + new Vector3(1.6f, 0f, 1.2f) : transform.position);
 
             rigRoot = new GameObject("RigTrabajo");
-            BuildSteps();
-            if (pasos.Count == 0) { Cleanup(); return; }
 
-            // sin WorkRequired (pintura vieja u otros): un "segundo" de trabajo por paso
+            // elevador: si está comprado y es un trabajo bajo chasis en la bahía 1, subimos el carro
+            // ANTES de armar los pasos, para que las anclas de cámara/props se horneen ya elevadas.
+            onLift = ShouldUseLift();
+            if (onLift)
+            {
+                durScale = 0.7f;                       // trabajo más cómodo → pasos más rápidos
+                liftGroundY = car.position.y;
+                car.position += Vector3.up * LiftHeight;
+            }
+
+            BuildSteps();
+            if (pasos.Count == 0)
+            {
+                if (onLift) { var p = car.position; p.y = liftGroundY; car.position = p; onLift = false; }
+                Cleanup();
+                return;
+            }
+
+            // chunk fijo por paso (WorkRequired/pasos): estable entre pausas, así al reanudar
+            // podemos ubicar exactamente en qué paso quedó la obra.
             if (mission.WorkRequired <= 0f) mission.WorkRequired = pasos.Count;
-            chunk = Mathf.Max(0.05f, (mission.WorkRequired - mission.WorkDone) / pasos.Count);
+            chunk = Mathf.Max(0.05f, mission.WorkRequired / pasos.Count);
 
             UIRoot.PushModal();
             if (fpc != null) fpc.enabled = false;
@@ -90,7 +115,76 @@ namespace PuntoMuerto
 
             BuildHintUI();
             SetWorkLight(true);
-            EnterStep(0);
+            // reanudar con el carro AÚN elevado: las piezas montadas antes de pausar usan posiciones
+            // horneadas a esa altura, así caen en su sitio.
+            int start = RestoreProgress();
+            if (onLift) SetupLift(animar: start == 0);
+            EnterStep(start);
+        }
+
+        /// <summary>¿Este trabajo usa el elevador? Requiere la mejora comprada, un carro de cliente
+        /// parado en cualquiera de las 3 bahías (todas tienen kit) y una tarea bajo el chasis.</summary>
+        bool ShouldUseLift()
+        {
+            if (car == null || mission == null) return false;
+            if (UpgradeSystem.I == null || !UpgradeSystem.I.Tiene("elevador")) return false;
+            if (car.GetComponent<CarJob>() == null) return false;          // solo carros de cliente en bahía
+            // bahías en x = 26.5, 35, 43.5 (z = -16); el carro debe estar sobre una de ellas
+            bool enBahia = false;
+            for (int i = 0; i < 3; i++)
+            {
+                Vector3 d = car.position - new Vector3(26.5f + i * 8.5f, car.position.y, -16f);
+                if (d.sqrMagnitude <= 6.25f) { enBahia = true; break; }    // <2.5m de una bahía
+            }
+            if (!enBahia) return false;
+            string t = mission.Title.ToLowerInvariant();
+            return t.Contains("aceite") || t.Contains("llanta") || t.Contains("freno")
+                || t.Contains("suspensión") || t.Contains("transmisión") || t.Contains("desarme");
+        }
+
+        /// <summary>Brazos rojos del elevador bajo el carro. En una obra nueva (animar) el carro
+        /// arranca en el piso y sube; al reanudar ya queda arriba.</summary>
+        void SetupLift(bool animar)
+        {
+            for (int s = -1; s <= 1; s += 2)
+            {
+                var arm = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                arm.name = "BrazoElevador";
+                Destroy(arm.GetComponent<Collider>());
+                arm.transform.SetParent(car, false);
+                arm.transform.localPosition = new Vector3(0f, -0.28f, s * 0.95f);
+                arm.transform.localScale = new Vector3(2.2f, 0.14f, 0.35f);
+                var r = arm.GetComponent<Renderer>();
+                r.material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+                r.material.SetColor("_BaseColor", new Color(0.75f, 0.15f, 0.12f));
+                liftArms.Add(arm);
+            }
+            if (animar)
+            {
+                // el carro arranca en el piso y sube durante el primer segundo (se ve elevar)
+                var p = car.position; p.y = liftGroundY; car.position = p;
+                liftT = 0f;
+                GameEvents.Notify("Elevador hidráulico: el carro sube y el trabajo bajo el chasis es más rápido.");
+            }
+            else liftT = 1f; // reanudado: el carro ya está arriba
+        }
+
+        /// <summary>Obra reanudada tras pausar con ESC: adelanta los pasos ya cubiertos por WorkDone
+        /// y aplica sus efectos (piezas al montón, tintes, fluidos) para que el carro se vea como quedó,
+        /// no reconstruido desde cero. Devuelve el paso donde continuar.</summary>
+        int RestoreProgress()
+        {
+            int hechos = Mathf.Clamp(Mathf.FloorToInt(mission.WorkDone / chunk + 0.001f), 0, pasos.Count - 1);
+            for (int i = 0; i < hechos; i++)
+            {
+                var p = pasos[i];
+                p.Progreso = p.Duracion;
+                if (p.Girar && p.Target != null) p.Target.transform.Rotate(0f, 0f, 640f, Space.Self);
+                if (p.Tinte != null) p.Tinte.material.SetColor("_BaseColor", p.TinteA);
+                p.AlAvanzar?.Invoke(1f);
+                p.AlTerminar?.Invoke();
+            }
+            return hechos;
         }
 
         /// <summary>Encargos de estación (Fabio) que necesitan carro: aparece parqueado junto al patio.</summary>
@@ -117,6 +211,15 @@ namespace PuntoMuerto
             if (kb != null && kb.escapeKey.wasPressedThisFrame) { Finish(false); return; }
             if (mission == null) { Finish(false); return; }
             if (mission.State == MissionState.Completada) { Finish(true); return; }
+
+            // el elevador sube el carro durante el primer segundo de la obra
+            if (onLift && liftT < 1f && car != null)
+            {
+                liftT = Mathf.MoveTowards(liftT, 1f, Time.deltaTime / 1.1f);
+                var cp = car.position;
+                cp.y = Mathf.Lerp(liftGroundY, liftGroundY + LiftHeight, Mathf.SmoothStep(0f, 1f, liftT));
+                car.position = cp;
+            }
 
             var p = pasos[idx];
 
@@ -244,6 +347,10 @@ namespace PuntoMuerto
         void Cleanup()
         {
             SetWorkLight(false);
+            // bajar el carro del elevador y quitar los brazos (el carro queda parado normal en la bahía)
+            if (onLift && car != null) { var p = car.position; p.y = liftGroundY; car.position = p; }
+            foreach (var a in liftArms) if (a != null) Destroy(a);
+            liftArms.Clear();
             if (hintPanel != null) { Destroy(hintPanel.gameObject); hintPanel = null; }
             if (rigRoot != null) Destroy(rigRoot);
             if (Current == this)
@@ -306,7 +413,7 @@ namespace PuntoMuerto
                 target.AddComponent<BoxCollider>();
             var p = new Paso
             {
-                Accion = a, Texto = texto, Target = target, Duracion = dur,
+                Accion = a, Texto = texto, Target = target, Duracion = Mathf.Max(0.05f, dur * durScale),
                 CamPos = camPos, CamMira = mira, Girar = girar,
                 AlTerminar = alTerminar, AlAvanzar = alAvanzar
             };
@@ -396,7 +503,9 @@ namespace PuntoMuerto
 
             if (soloSacar) return;
 
-            var nueva = Prop(PrimitiveType.Cylinder, "LlantaNueva", pilePoint + Vector3.up * 0.35f + outward * 0.8f,
+            // la llanta nueva se apoya JUNTO al cubo, entre la cámara y la rueda: así queda en
+            // cuadro y se puede clicar (antes iba al montón lateral, fuera del encuadre).
+            var nueva = Prop(PrimitiveType.Cylinder, "LlantaNueva", wPos + outward * 0.95f + Vector3.up * 0.02f,
                 new Vector3(0.64f, 0.12f, 0.64f), new Color(0.05f, 0.05f, 0.05f));
             nueva.transform.rotation = Quaternion.FromToRotation(Vector3.up, outward);
             Step(Accion.Clic, "Monta la " + etiqueta + " nueva", nueva, 1f, camPos, wPos,
@@ -439,7 +548,7 @@ namespace PuntoMuerto
             pastilla.TinteDe = Oxido;
             pastilla.TinteA = new Color(0.75f, 0.2f, 0.15f);
 
-            var nueva = Prop(PrimitiveType.Cylinder, "LlantaNueva", pilePoint + Vector3.up * 0.35f,
+            var nueva = Prop(PrimitiveType.Cylinder, "LlantaNueva", wPos + outward * 0.95f + Vector3.up * 0.02f,
                 new Vector3(0.64f, 0.12f, 0.64f), new Color(0.05f, 0.05f, 0.05f));
             nueva.transform.rotation = Quaternion.FromToRotation(Vector3.up, outward);
             Step(Accion.Clic, "Monta la llanta de nuevo", nueva, 1f, camPos, wPos,
@@ -457,32 +566,54 @@ namespace PuntoMuerto
 
         void RigAceite()
         {
-            Vector3 frente = W(new Vector3(0f, 0.14f, 1.15f));
-            Vector3 camBajo = W(new Vector3(1.3f, 0.7f, 2.3f));
+            // La carrocería (Body) tapa z ±1.9, y 0.18..0.73: cualquier pieza bajo el carro o bajo
+            // el capó cerrado quedaba oculta por su collider y no se podía clicar. Por eso ahora se
+            // abre el capó y se trabaja con el tapón del cárter EN EL BORDE DELANTERO (delante de la
+            // carrocería, z>1.9) y la boca de aceite POR ENCIMA del motor descubierto (y>0.73).
+            Vector3 capoPos = W(new Vector3(0f, 0.78f, 1.05f));
+            Vector3 camCapo = W(new Vector3(1.4f, 1.9f, 2.9f));
+            var capo = Prop(PrimitiveType.Cube, "Capo", capoPos, new Vector3(1.5f, 0.05f, 1.45f), CarBodyColor());
+            capo.transform.rotation = car.rotation;
+            Step(Accion.Clic, "Abre el capó", capo, 1f, camCapo, capoPos, alTerminar: () =>
+            {
+                capo.transform.rotation = car.rotation * Quaternion.Euler(-58f, 0f, 0f);
+                capo.transform.position = W(new Vector3(0f, 1.22f, 0.55f));
+            });
 
-            var tapon = Prop(PrimitiveType.Cylinder, "Tapon", frente, new Vector3(0.14f, 0.05f, 0.14f), Gris);
-            var bandeja = Prop(PrimitiveType.Cylinder, "Bandeja", W(new Vector3(0f, 0.05f, 1.15f)) + Vector3.down * 0.02f,
+            // drenaje: tapón del cárter asomando en el borde delantero-inferior, expuesto y de frente
+            Vector3 drenaje = W(new Vector3(0f, 0.24f, 1.98f));
+            Vector3 camDren = W(new Vector3(0f, 0.72f, 3.7f));
+            var tapon = Prop(PrimitiveType.Cylinder, "Tapon", drenaje, new Vector3(0.15f, 0.05f, 0.15f), Gris);
+            tapon.transform.rotation = Quaternion.FromToRotation(Vector3.up, WD(Vector3.forward));
+            var bandeja = Prop(PrimitiveType.Cylinder, "Bandeja", W(new Vector3(0f, 0.04f, 1.98f)),
                 new Vector3(0.55f, 0.05f, 0.55f), Oscuro);
             var fluido = Prop(PrimitiveType.Cylinder, "AceiteViejo", bandeja.transform.position + Vector3.up * 0.03f,
                 new Vector3(0.06f, 0.005f, 0.06f), new Color(0.1f, 0.08f, 0.04f));
             Object.Destroy(fluido.GetComponent<Collider>());
 
-            Step(Accion.Mantener, "Afloja el tapón del cárter", tapon, 1.1f, camBajo, frente,
+            Step(Accion.Mantener, "Afloja el tapón del cárter", tapon, 1.1f, camDren, drenaje,
                 girar: true, alTerminar: () => ToPile(tapon));
-            Step(Accion.Mantener, "Deja drenar el aceite viejo", bandeja, 1.6f, camBajo, frente,
+            Step(Accion.Mantener, "Deja drenar el aceite viejo", bandeja, 1.6f, camDren, W(new Vector3(0f, 0.12f, 1.98f)),
                 alAvanzar: f => fluido.transform.localScale = new Vector3(0.06f + f * 0.42f, 0.006f, 0.06f + f * 0.42f));
-            var tapon2 = Prop(PrimitiveType.Cylinder, "TaponNuevo", frente, new Vector3(0.14f, 0.05f, 0.14f),
+            var tapon2 = Prop(PrimitiveType.Cylinder, "TaponNuevo", drenaje, new Vector3(0.15f, 0.05f, 0.15f),
                 new Color(0.7f, 0.7f, 0.72f));
-            Step(Accion.Clic, "Pon el tapón nuevo", tapon2, 1f, camBajo, frente);
+            tapon2.transform.rotation = Quaternion.FromToRotation(Vector3.up, WD(Vector3.forward));
+            Step(Accion.Clic, "Pon el tapón nuevo", tapon2, 1f, camDren, drenaje);
 
-            Vector3 boca = W(new Vector3(0.3f, 0.78f, 0.95f));
-            var tapaAceite = Prop(PrimitiveType.Cylinder, "BocaAceite", boca, new Vector3(0.12f, 0.06f, 0.12f), Gris);
-            var lata = Prop(PrimitiveType.Cylinder, "LataAceite", boca + Vector3.up * 0.28f + WD(Vector3.right) * 0.18f,
+            // llenado: boca de aceite sobre el motor, ya descubierto por el capó abierto
+            Vector3 boca = W(new Vector3(0.25f, 0.82f, 0.95f));
+            var tapaAceite = Prop(PrimitiveType.Cylinder, "BocaAceite", boca, new Vector3(0.13f, 0.06f, 0.13f), Gris);
+            var lata = Prop(PrimitiveType.Cylinder, "LataAceite", boca + Vector3.up * 0.3f + WD(Vector3.right) * 0.18f,
                 new Vector3(0.14f, 0.16f, 0.14f), new Color(0.8f, 0.65f, 0.2f));
             lata.transform.rotation = Quaternion.Euler(0f, 0f, -40f);
-            Step(Accion.Mantener, "Vierte el aceite nuevo", tapaAceite, 1.6f,
-                W(new Vector3(1.1f, 1.5f, 1.9f)), boca,
+            Step(Accion.Mantener, "Vierte el aceite nuevo", tapaAceite, 1.6f, camCapo, boca,
                 alAvanzar: f => lata.transform.rotation = Quaternion.Euler(0f, 0f, -40f - f * 45f));
+
+            Step(Accion.Clic, "Cierra el capó", capo, 1f, camCapo, capoPos, alTerminar: () =>
+            {
+                capo.transform.rotation = car.rotation;
+                capo.transform.position = capoPos;
+            });
         }
 
         void RigTanque()

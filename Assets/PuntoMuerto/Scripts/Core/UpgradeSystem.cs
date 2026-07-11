@@ -96,7 +96,7 @@ namespace PuntoMuerto
         {
             switch (id)
             {
-                case "elevador": return " — míralo en la bahía 1.";
+                case "elevador": return " — instalado en las 3 bahías.";
                 case "herramientas": return " — gabinete nuevo junto a la pared trasera.";
                 case "almacen1": return " — estantería nueva en el garaje.";
                 case "almacen2": return " — bodega nueva en el patio.";
