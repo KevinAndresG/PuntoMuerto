@@ -1,3 +1,4 @@
+using Unity.AI.Navigation;
 using UnityEngine;
 
 namespace PuntoMuerto.EditorTools
@@ -47,14 +48,24 @@ namespace PuntoMuerto.EditorTools
             var roads = Empty("Vias", world, Vector3.zero).transform;
 
             // calle principal (X) y avenida (Z) cruzan TODO el mapa (antes se cortaban en el pasto);
-            // alturas ligeramente distintas para evitar z-fighting en los cruces
-            Box("CallePrincipal", roads, new Vector3(0f, 0.02f, 0f), new Vector3(320f, 0.04f, 8f), "Asfalto");
-            Box("Avenida", roads, new Vector3(0f, 0.024f, 0f), new Vector3(8f, 0.04f, 320f), "Asfalto");
+            // alturas ligeramente distintas para evitar z-fighting en los cruces.
+            // Área NavMesh 3 = "vía": costo alto para peatones (cruzan solo por las cebras).
+            RoadArea(Box("CallePrincipal", roads, new Vector3(0f, 0.02f, 0f), new Vector3(320f, 0.04f, 8f), "Asfalto"));
+            RoadArea(Box("Avenida", roads, new Vector3(0f, 0.024f, 0f), new Vector3(8f, 0.04f, 320f), "Asfalto"));
             // anillo
-            Box("AnilloN", roads, new Vector3(0f, 0.028f, 60f), new Vector3(128f, 0.04f, 8f), "Asfalto");
-            Box("AnilloS", roads, new Vector3(0f, 0.028f, -60f), new Vector3(128f, 0.04f, 8f), "Asfalto");
-            Box("AnilloE", roads, new Vector3(60f, 0.032f, 0f), new Vector3(8f, 0.04f, 128f), "Asfalto");
-            Box("AnilloO", roads, new Vector3(-60f, 0.032f, 0f), new Vector3(8f, 0.04f, 128f), "Asfalto");
+            RoadArea(Box("AnilloN", roads, new Vector3(0f, 0.028f, 60f), new Vector3(128f, 0.04f, 8f), "Asfalto"));
+            RoadArea(Box("AnilloS", roads, new Vector3(0f, 0.028f, -60f), new Vector3(128f, 0.04f, 8f), "Asfalto"));
+            RoadArea(Box("AnilloE", roads, new Vector3(60f, 0.032f, 0f), new Vector3(8f, 0.04f, 128f), "Asfalto"));
+            RoadArea(Box("AnilloO", roads, new Vector3(-60f, 0.032f, 0f), new Vector3(8f, 0.04f, 128f), "Asfalto"));
+
+            // cebras peatonales: únicos puntos "baratos" para cruzar la vía
+            var cruces = Empty("Cebras", roads, Vector3.zero).transform;
+            Crosswalk(cruces, new Vector3(9f, 0f, 0f), true);    // cruce central, lado este
+            Crosswalk(cruces, new Vector3(-9f, 0f, 0f), true);   // cruce central, lado oeste
+            Crosswalk(cruces, new Vector3(0f, 0f, 9f), false);   // cruce central, lado norte
+            Crosswalk(cruces, new Vector3(0f, 0f, -9f), false);  // cruce central, lado sur
+            Crosswalk(cruces, new Vector3(30f, 0f, 0f), true);   // frente al taller
+            Crosswalk(cruces, new Vector3(-26f, 0f, 0f), true);  // frente al súper
 
             // líneas centrales discontinuas en TODAS las vías, saltando las intersecciones
             var lines = Empty("Lineas", roads, Vector3.zero).transform;
@@ -278,6 +289,31 @@ namespace PuntoMuerto.EditorTools
             l.color = new Color(1f, 0.85f, 0.6f);
             l.shadows = LightShadows.None;
             lamp.AddComponent<PuntoMuerto.NightLight>();
+        }
+
+        /// <summary>Marca una vía como área NavMesh 3 ("vía": costo alto para peatones en runtime).</summary>
+        static void RoadArea(GameObject road)
+        {
+            var mod = road.AddComponent<NavMeshModifier>();
+            mod.overrideArea = true;
+            mod.area = 3;
+        }
+
+        /// <summary>Cebra peatonal: franjas blancas + NavMeshModifierVolume que devuelve el área
+        /// caminable normal — el único punto barato para que un NPC cruce la vía.</summary>
+        static void Crosswalk(Transform parent, Vector3 pos, bool cruzaCallePrincipal)
+        {
+            var cw = Empty("Cebra", parent, pos);
+            for (int i = -3; i <= 3; i++)
+            {
+                var off = cruzaCallePrincipal ? new Vector3(0f, 0f, i * 1.1f) : new Vector3(i * 1.1f, 0f, 0f);
+                var size = cruzaCallePrincipal ? new Vector3(2.4f, 0.02f, 0.55f) : new Vector3(0.55f, 0.02f, 2.4f);
+                Box("Franja", cw.transform, pos + off + Vector3.up * 0.06f, size, "LineaVia");
+            }
+            var vol = cw.AddComponent<NavMeshModifierVolume>();
+            vol.center = Vector3.up * 0.5f;
+            vol.size = cruzaCallePrincipal ? new Vector3(3.2f, 2f, 13f) : new Vector3(13f, 2f, 3.2f);
+            vol.area = 0;
         }
 
         static void BuildTown(Transform world)

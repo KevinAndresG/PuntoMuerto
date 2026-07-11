@@ -29,7 +29,8 @@ namespace PuntoMuerto
                 float col = i % 2 == 0 ? -0.75f : 0.75f;
                 float row = 1.9f - (i / 2) * 0.62f;
                 go.transform.localPosition = new Vector3(col, row, -0.62f);
-                go.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+                // hereda el -90° del padre (frente local -z → +x): sin voltear, el texto se lee derecho.
+                go.transform.localRotation = Quaternion.identity;
                 go.transform.localScale = Vector3.one * 0.035f;
                 var tm = go.AddComponent<TextMesh>();
                 tm.fontSize = 56;

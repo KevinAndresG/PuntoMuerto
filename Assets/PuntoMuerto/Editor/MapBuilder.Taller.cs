@@ -86,12 +86,15 @@ namespace PuntoMuerto.EditorTools
 
             // ---- botón de pared ABIERTO/CERRADO en el pilar de recepción ----
             // ShopSign crea en runtime la lámpara verde/roja y el cartel flotante sobre el pilar.
-            var shopSign = Empty("BotonTaller", taller, new Vector3(48f, 1.5f, -9.55f));
-            Box("BotonCaja", shopSign.transform, new Vector3(48f, 1.5f, -9.62f), new Vector3(0.45f, 0.62f, 0.14f), "MetalOscuro", 0f, false);
-            Box("BotonTapa", shopSign.transform, new Vector3(48f, 1.5f, -9.53f), new Vector3(0.28f, 0.28f, 0.08f), "LaminaRoja", 0f, false);
+            // botón montado en la cara INTERIOR del Pilar4 (z<-10 = dentro del garaje), mirando al interior
+            var shopSign = Empty("BotonTaller", taller, new Vector3(48f, 1.5f, -10.55f));
+            Box("BotonCaja", shopSign.transform, new Vector3(48f, 1.5f, -10.48f), new Vector3(0.45f, 0.62f, 0.14f), "MetalOscuro", 0f, false);
+            Box("BotonTapa", shopSign.transform, new Vector3(48f, 1.5f, -10.57f), new Vector3(0.28f, 0.28f, 0.08f), "LaminaRoja", 0f, false);
             var signCol = shopSign.AddComponent<BoxCollider>();
             signCol.size = new Vector3(0.8f, 1f, 0.6f);
             shopSign.AddComponent<PuntoMuerto.ShopSign>();
+            // ancla fija del cartel ABIERTO/CERRADO: centrado sobre el frente del taller (x=35), alto y hacia la calle
+            Empty("CartelEstadoAnchor", taller, new Vector3(35f, 8.2f, -9.8f));
 
             // ---- sala de espera INTERIOR (ala oeste del garaje) ----
             var sala = Empty("SalaEspera", taller, Vector3.zero).transform;
@@ -265,10 +268,11 @@ namespace PuntoMuerto.EditorTools
             winLight.color = new Color(1f, 0.6f, 0.35f);
             backWin.AddComponent<PuntoMuerto.NightLight>();
 
-            // banca de espera del negocio sucio (junto al cuarto, contra la pared trasera)
-            Box("BancaSucia", taller, new Vector3(36.2f, 0.42f, -22.2f), new Vector3(2.8f, 0.12f, 0.6f), "Madera");
-            Box("BancaSuciaPata", taller, new Vector3(36.2f, 0.18f, -22.2f), new Vector3(2.6f, 0.36f, 0.5f), "MetalOscuro");
-            Box("CajaBancaSucia", taller, new Vector3(38.2f, 0.4f, -22.3f), new Vector3(0.8f, 0.8f, 0.8f), "Madera", 20f);
+            // banca de espera del negocio sucio: contra la cerca ESTE (x~53), fuera del portón
+            // peatonal garaje→patio (x33..37) que antes bloqueaba. Corre a lo largo de Z.
+            Box("BancaSucia", taller, new Vector3(53.2f, 0.42f, -27f), new Vector3(2.8f, 0.12f, 0.6f), "Madera", 90f);
+            Box("BancaSuciaPata", taller, new Vector3(53.2f, 0.18f, -27f), new Vector3(2.6f, 0.36f, 0.5f), "MetalOscuro", 90f);
+            Box("CajaBancaSucia", taller, new Vector3(53f, 0.4f, -30.5f), new Vector3(0.8f, 0.8f, 0.8f), "Madera", 20f);
         }
 
         /// <summary>Kits visuales de cada mejora, inactivos hasta comprarla (UpgradeSystem.ReapplySceneEffects).</summary>

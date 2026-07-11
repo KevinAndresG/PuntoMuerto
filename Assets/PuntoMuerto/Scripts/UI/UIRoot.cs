@@ -15,7 +15,11 @@ namespace PuntoMuerto
         static int modalCount;
         public static bool ModalOpen => modalCount > 0;
         public static void PushModal() { modalCount++; }
-        public static void PopModal() { modalCount = Mathf.Max(0, modalCount - 1); }
+        public static void PopModal() { modalCount = Mathf.Max(0, modalCount - 1); LastModalClosedFrame = Time.frameCount; }
+
+        /// <summary>Frame en que se cerró el último modal: evita que un mismo Esc que cierra
+        /// un modal abra el menú de pausa en el mismo frame.</summary>
+        public static int LastModalClosedFrame = -1;
 
         public static Font DefaultFont;
 

@@ -275,8 +275,27 @@ namespace PuntoMuerto.EditorTools
 
         static void BakeNavMesh(Transform world)
         {
+            // en edit mode los Collider.bounds quedan sin sincronizar tras crear la escena por
+            // código (reportan el AABB por defecto): forzar la sincronización antes de leerlos.
+            Physics.SyncTransforms();
+
+            // paredes, techos, vigas, tanques, letreros, postes: jamás caminable. Todo lo alto
+            // (tope del collider > 2.6m) se marca Not Walkable para que no salgan islas de navmesh
+            // sobre los edificios ni zonas inaccesibles. El suelo, vías, andenes, pisos y props
+            // bajos quedan por debajo del umbral y siguen siendo caminables.
+            foreach (var col in world.GetComponentsInChildren<Collider>())
+            {
+                if (col.bounds.max.y > 2.6f && col.GetComponent<NavMeshModifier>() == null)
+                {
+                    var mod = col.gameObject.AddComponent<NavMeshModifier>();
+                    mod.overrideArea = true;
+                    mod.area = 1; // Not Walkable
+                }
+            }
             var surface = world.gameObject.AddComponent<NavMeshSurface>();
             surface.collectObjects = CollectObjects.All;
+            // solo colliders físicos: colinas y copas de árboles (sin collider) no generan islas
+            surface.useGeometry = NavMeshCollectGeometry.PhysicsColliders;
             surface.layerMask = ~0;
             surface.BuildNavMesh();
         }

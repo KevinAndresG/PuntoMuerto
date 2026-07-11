@@ -90,6 +90,29 @@ namespace PuntoMuerto
             return false;
         }
 
+        /// <summary>Trabajo por bloques del minijuego (un paso = una fracción fija, sin multiplicadores).
+        /// Devuelve true si la misión terminó. En multijugador el cliente reporta y completa el host.</summary>
+        public bool DoWorkChunk(Mission m, float amount)
+        {
+            if (m == null || m.State == MissionState.Completada) return false;
+            m.State = MissionState.EnProgreso;
+            if (Net.IsClientOnly)
+            {
+                m.WorkDone = Mathf.Min(m.WorkDone + amount, m.WorkRequired * 0.999f);
+                GameSync.SendWork(m.Id, amount);
+                return false;
+            }
+            m.WorkDone += amount;
+            if (m.EsIlegal && FenceSpySystem.I != null)
+                FenceSpySystem.I.RegisterNoise(m.Noise);
+            if (m.WorkDone >= m.WorkRequired)
+            {
+                Complete(m);
+                return true;
+            }
+            return false;
+        }
+
         /// <summary>Avance reportado por un cliente remoto (solo host).</summary>
         public void HostWork(int id, float amount)
         {

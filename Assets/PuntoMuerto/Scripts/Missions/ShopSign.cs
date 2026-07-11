@@ -34,10 +34,13 @@ namespace PuntoMuerto
             lamp.range = 5f;
             lamp.intensity = 1.8f;
 
-            // cartel flotante sobre el pilar, siempre mirando al jugador
+            // cartel flotante centrado sobre el frente del taller (ancla fija; no cuelga del botón)
             var cartelGo = new GameObject("CartelFlotante");
             cartelGo.transform.SetParent(transform, false);
-            cartelGo.transform.localPosition = new Vector3(0f, 4.1f, 0.4f);
+            var anchor = GameObject.Find("CartelEstadoAnchor");
+            cartelGo.transform.position = anchor != null
+                ? anchor.transform.position
+                : transform.position + new Vector3(0f, 4.1f, 0.4f);
             cartelGo.transform.localScale = Vector3.one * 0.07f;
             text = cartelGo.AddComponent<TextMesh>();
             text.fontSize = 60;
@@ -46,7 +49,7 @@ namespace PuntoMuerto
             text.fontStyle = FontStyle.Bold;
             TextStyle.Apply(text);
             cartel = cartelGo.transform;
-            cartelBase = cartel.localPosition;
+            cartelBase = cartel.position;
 
             var tapa = transform.Find("BotonTapa");
             if (tapa != null) boton = tapa.GetComponent<Renderer>();
@@ -71,7 +74,7 @@ namespace PuntoMuerto
 
             if (cartel != null)
             {
-                cartel.localPosition = cartelBase + Vector3.up * (Mathf.Sin(Time.time * 1.5f) * 0.12f);
+                cartel.position = cartelBase + Vector3.up * (Mathf.Sin(Time.time * 1.5f) * 0.12f);
                 if (Camera.main != null)
                     cartel.rotation = Quaternion.LookRotation(cartel.position - Camera.main.transform.position);
             }

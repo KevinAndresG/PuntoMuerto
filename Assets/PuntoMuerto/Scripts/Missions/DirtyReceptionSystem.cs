@@ -42,10 +42,11 @@ namespace PuntoMuerto
         // salida por la rendija sur de la cerca
         static readonly Vector3 BackExit = new Vector3(39f, 0f, -47f);
         static readonly Vector3 FootGate = new Vector3(39f, 0f, -45.5f);
-        // banca de espera junto al cuarto de la ventanilla
+        // banca de espera contra la cerca este del patio (fuera del paso al patio trasero),
+        // asientos separados a lo largo de la banca
         static readonly Vector3[] WaitSpots =
         {
-            new Vector3(34.8f, 0f, -22.6f), new Vector3(36.2f, 0f, -22.6f), new Vector3(37.6f, 0f, -22.6f)
+            new Vector3(51.8f, 0f, -25.7f), new Vector3(51.8f, 0f, -27.2f), new Vector3(51.8f, 0f, -28.7f)
         };
 
         public bool CanReceive => Queue.Count + pending.Count < MaxQueue;

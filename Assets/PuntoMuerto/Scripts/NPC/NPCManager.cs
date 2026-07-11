@@ -35,6 +35,14 @@ namespace PuntoMuerto
         }
 
         void Awake() { I = this; }
+
+        void Start()
+        {
+            // área 3 = "vía" (MapBuilder): cara para peatones, así los NPC van por los
+            // andenes y cruzan la calle solo por las cebras (área normal)
+            UnityEngine.AI.NavMesh.SetAreaCost(3, 12f);
+        }
+
         void OnEnable() { GameEvents.OnDayStart += OnDayStart; GameEvents.OnHourTick += OnHourTick; }
         void OnDisable() { GameEvents.OnDayStart -= OnDayStart; GameEvents.OnHourTick -= OnHourTick; }
 

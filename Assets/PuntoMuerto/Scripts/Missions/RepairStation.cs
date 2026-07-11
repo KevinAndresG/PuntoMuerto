@@ -1,12 +1,12 @@
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace PuntoMuerto
 {
     public enum StationKind { Bahia, Patio, Pintura }
 
-    /// <summary>Estación de trabajo: mantén E cerca para avanzar la misión asignada.</summary>
+    /// <summary>Estación de trabajo del patio: E abre el minijuego de trabajo de la misión asignada
+    /// (encargos de Fabio). El trabajo sucio solo corre de noche y hace ruido/luz (riesgo cerca).</summary>
     public class RepairStation : MonoBehaviour, IInteractable
     {
         public static readonly List<RepairStation> All = new List<RepairStation>();
@@ -15,10 +15,7 @@ namespace PuntoMuerto
         public bool Unlocked = true;
         public Mission CurrentMission;
 
-        Transform player;
-        bool working;
         float coveredUntil;
-        GameObject sparks;
 
         public string Prompt
         {
@@ -31,7 +28,7 @@ namespace PuntoMuerto
             }
         }
 
-        public bool CanInteract => CurrentMission != null &&
+        public bool CanInteract => CurrentMission != null && CarWorkMinigame.Current == null &&
             (Kind != StationKind.Patio || EsDeNoche) && Time.time >= coveredUntil;
 
         bool EsDeNoche => DayNightCycle.I != null && DayNightCycle.I.IsNight;
@@ -42,14 +39,7 @@ namespace PuntoMuerto
         public void Interact(PlayerInteraction p)
         {
             if (CurrentMission == null) return;
-            // pintura => minijuego de lijado
-            if (CurrentMission.Title.Contains("Pintura") || Kind == StationKind.Pintura)
-            {
-                var mg = Object.FindFirstObjectByType<SandingMinigameUI>();
-                if (mg != null) { mg.Open(CurrentMission, this); return; }
-            }
-            player = p.transform;
-            working = true;
+            CarWorkMinigame.Begin(CurrentMission, null, this);
         }
 
         void Update()
@@ -58,60 +48,12 @@ namespace PuntoMuerto
             if (CurrentMission != null && CurrentMission.State == MissionState.Completada)
             {
                 CurrentMission = null;
-                working = false;
-                SetSparks(false);
-                HUDController.SetWorkProgress(-1f, null, 0f);
-                return;
-            }
-            if (!working || CurrentMission == null) { SetSparks(false); return; }
-            var kb = Keyboard.current;
-            bool holding = kb != null && kb.eKey.isPressed;
-            bool near = player != null && Vector3.Distance(player.position, transform.position) < 3.2f;
-            if (!holding || !near || Time.time < coveredUntil ||
-                (Kind == StationKind.Patio && !EsDeNoche) || UIRoot.ModalOpen)
-            {
-                working = false;
-                SetSparks(false);
-                return;
-            }
-
-            SetSparks(CurrentMission.EsIlegal && CurrentMission.Noise > 0.4f);
-            bool done = MissionSystem.I.DoWork(CurrentMission, Time.deltaTime);
-            HUDController.SetWorkProgress(CurrentMission.Progress01, CurrentMission.Title,
-                CurrentMission.EsIlegal ? CurrentMission.Noise : 0f);
-            if (done)
-            {
-                CurrentMission = null;
-                working = false;
-                SetSparks(false);
                 HUDController.SetWorkProgress(-1f, null, 0f);
             }
         }
 
         /// <summary>Lona: tapa el trabajo unos segundos (el espía pierde interés).</summary>
-        public void Cover(float seconds) { coveredUntil = Time.time + seconds; working = false; }
-
-        void SetSparks(bool on)
-        {
-            if (on && sparks == null)
-            {
-                sparks = new GameObject("SopleteLight");
-                sparks.transform.SetParent(transform, false);
-                sparks.transform.localPosition = Vector3.up * 1.2f;
-                var l = sparks.AddComponent<Light>();
-                l.type = LightType.Point;
-                l.color = new Color(1f, 0.7f, 0.3f);
-                l.range = 7f;
-                l.intensity = 3.5f;
-                var flick = sparks.AddComponent<LightFlicker>();
-                flick.BaseIntensity = 3.5f;
-            }
-            else if (!on && sparks != null)
-            {
-                Destroy(sparks);
-                sparks = null;
-            }
-        }
+        public void Cover(float seconds) { coveredUntil = Time.time + seconds; }
     }
 
 }

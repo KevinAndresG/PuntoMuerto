@@ -1,6 +1,8 @@
-// Texto 3D de una sola cara que respeta la profundidad:
-// - Cull Back: no se ve (invertido) por detrás.
-// - ZTest LEqual: las paredes lo tapan (el font shader por defecto usa ZTest Always).
+// Texto 3D que respeta la profundidad:
+// - ZTest LEqual: las paredes lo tapan (el font shader por defecto usa ZTest Always, por eso
+//   se veía a través de todo y "al revés" desde atrás). Como la pared ya oculta el reverso,
+//   no hace falta cullear la cara trasera: con Cull Off el texto es visible desde cualquier
+//   ángulo válido (labels que miran a la cámara, carteles, etiquetas de estantería, etc.).
 Shader "PuntoMuerto/Text3D"
 {
     Properties
@@ -12,7 +14,7 @@ Shader "PuntoMuerto/Text3D"
     {
         Tags { "Queue"="Transparent" "IgnoreProjector"="True" "RenderType"="Transparent" }
         Lighting Off
-        Cull Back
+        Cull Off
         ZWrite Off
         ZTest LEqual
         Blend SrcAlpha OneMinusSrcAlpha

@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace PuntoMuerto
 {
@@ -202,17 +201,14 @@ namespace PuntoMuerto
         }
     }
 
-    /// <summary>Carro de cliente en un slot: mantén E para trabajar. Consume repuestos. El trabajo ilegal hace ruido.
+    /// <summary>Carro de cliente en un slot: E abre el minijuego de trabajo (aflojar tuercas,
+    /// cambiar llantas, pintar...). Consume repuestos. El trabajo ilegal hace ruido.
     /// Al terminar queda "listo" y se despacha con E (el cliente sube y se va).</summary>
     public class CarJob : MonoBehaviour, IInteractable
     {
         public Mission Mission;
-        Transform player;
-        bool working;
         bool dispatched;
-        GameObject workLight;
 
-        bool EsPintura => Mission != null && Mission.Title.Contains("Pintura");
         bool Listo => Mission != null && Mission.State == MissionState.Completada;
 
         public string Prompt
@@ -223,12 +219,11 @@ namespace PuntoMuerto
                 if (Listo) return "Entregar el carro de " + Mission.ClientName;
                 if (!Mission.PartsConsumed && Mission.Parts.Count > 0 && !InventorySystem.I.Has(Mission.Parts))
                     return "Faltan repuestos: " + InventorySystem.I.MissingText(Mission.Parts) + " (cómpralos en el PC de la oficina)";
-                if (EsPintura) return "Lijar y pintar: " + Mission.Title;
                 return "Trabajar: " + Mission.Title + " " + Mathf.RoundToInt(Mission.Progress01 * 100f) + "%";
             }
         }
 
-        public bool CanInteract => Mission != null && !dispatched;
+        public bool CanInteract => Mission != null && !dispatched && CarWorkMinigame.Current == null;
 
         public void Interact(PlayerInteraction p)
         {
@@ -252,58 +247,7 @@ namespace PuntoMuerto
                 }
                 Mission.PartsConsumed = true;
             }
-            if (EsPintura)
-            {
-                var mg = Object.FindFirstObjectByType<SandingMinigameUI>();
-                if (mg != null) { mg.Open(Mission, null); return; }
-            }
-            player = p.transform;
-            working = true;
-        }
-
-        void Update()
-        {
-            if (!working || Mission == null) { SetWorkLight(false); return; }
-            var kb = Keyboard.current;
-            bool holding = kb != null && kb.eKey.isPressed;
-            bool near = player != null && Vector3.Distance(player.position, transform.position) < 3.5f;
-            if (!holding || !near || UIRoot.ModalOpen) { working = false; SetWorkLight(false); return; }
-
-            SetWorkLight(true);
-            bool done = MissionSystem.I.DoWork(Mission, Time.deltaTime);
-            HUDController.SetWorkProgress(Mission.Progress01, Mission.Title,
-                Mission.EsIlegal ? Mission.Noise : 0f);
-            if (done || Listo)
-            {
-                working = false;
-                SetWorkLight(false);
-                HUDController.SetWorkProgress(-1f, null, 0f);
-                GameEvents.Notify("\"" + Mission.Title + "\" terminado. Despacha el carro con E.");
-            }
-        }
-
-        /// <summary>Luz de trabajo: soplete naranja si es ilegal (alerta vecinos), azulada si es legal.</summary>
-        void SetWorkLight(bool on)
-        {
-            if (on && workLight == null)
-            {
-                bool ilegal = Mission != null && Mission.EsIlegal;
-                workLight = new GameObject("LuzTrabajo");
-                workLight.transform.SetParent(transform, false);
-                workLight.transform.localPosition = Vector3.up * 1.3f;
-                var l = workLight.AddComponent<Light>();
-                l.type = LightType.Point;
-                l.color = ilegal ? new Color(1f, 0.6f, 0.25f) : new Color(0.65f, 0.8f, 1f);
-                l.range = ilegal ? 8f : 5f;
-                l.intensity = ilegal ? 3.5f : 2.2f;
-                var flick = workLight.AddComponent<LightFlicker>();
-                flick.BaseIntensity = l.intensity;
-            }
-            else if (!on && workLight != null)
-            {
-                Destroy(workLight);
-                workLight = null;
-            }
+            CarWorkMinigame.Begin(Mission, transform, null);
         }
     }
 }

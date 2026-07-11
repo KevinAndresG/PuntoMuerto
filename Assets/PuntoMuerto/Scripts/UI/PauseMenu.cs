@@ -14,6 +14,7 @@ namespace PuntoMuerto
             var kb = Keyboard.current;
             if (kb == null || !kb.escapeKey.wasPressedThisFrame) return;
             if (panel == null && UIRoot.ModalOpen) return; // otro modal abierto: Esc no pausa
+            if (panel == null && UIRoot.LastModalClosedFrame == Time.frameCount) return; // Esc acaba de cerrar un modal
             if (panel == null) Open(); else Close();
         }
 
