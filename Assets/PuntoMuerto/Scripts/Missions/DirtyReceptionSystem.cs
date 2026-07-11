@@ -6,8 +6,9 @@ namespace PuntoMuerto
 {
     /// <summary>
     /// Negocio sucio por la ventanilla trasera: clientes turbios entran (en carro o a pie) por la
-    /// rendija sur del patio, hacen fila en el cuarto de la ventanilla y, si aceptas, su carro pasa
-    /// a un slot del patio y el cliente espera en la banca hasta que le entregues.
+    /// rendija sur del patio, hacen fila AFUERA frente a la ventanilla (el cuarto es cerrado: solo
+    /// el jugador entra por la puerta del garaje) y, si aceptas, su carro pasa a un slot del patio
+    /// y el cliente espera en la banca hasta que le entregues.
     /// En multijugador el host es la autoridad; los clientes ven un espejo sincronizado.
     /// </summary>
     public class DirtyReceptionSystem : MonoBehaviour
@@ -54,8 +55,8 @@ namespace PuntoMuerto
         void OnEnable() { GameEvents.OnMissionFailed += OnMissionFailed; GameEvents.OnDayStart += OnDayStart; }
         void OnDisable() { GameEvents.OnMissionFailed -= OnMissionFailed; GameEvents.OnDayStart -= OnDayStart; }
 
-        // fila dentro del cuarto: desde la ventanilla hacia la puerta sur
-        Vector3 QueueSpot(int i) => new Vector3(30f, 0f, -22.3f - i * 1.15f);
+        // fila en el patio: desde la ventanilla (pared sur del cuarto) hacia el fondo
+        Vector3 QueueSpot(int i) => new Vector3(30f, 0f, -26.5f - i * 1.2f);
         Vector3 ParkSpot(int i) => new Vector3(36f + i * 4f, 0f, -40.5f);
 
         public void BeginArrival(Mission m, Color carColor, bool fromNet = false)

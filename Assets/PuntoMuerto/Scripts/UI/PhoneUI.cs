@@ -33,9 +33,19 @@ namespace PuntoMuerto
                 y += 108f;
                 float yy = y;
                 UIRoot.CreateButton(panel, "Aceptar el encargo", new Vector2(0.5f, 1f), new Vector2(-160f, -yy),
-                    new Vector2(290f, 48f), () => { Close(); gen.AcceptOffer(); });
+                    new Vector2(290f, 48f), () =>
+                    {
+                        Close();
+                        if (Net.IsClientOnly) GameSync.RequestPhoneOffer(true); // el host ejecuta
+                        else gen.AcceptOffer();
+                    });
                 UIRoot.CreateButton(panel, "Rechazar (Fabio -10/-20)", new Vector2(0.5f, 1f), new Vector2(160f, -yy),
-                    new Vector2(290f, 48f), () => { Close(); gen.RejectOffer(); });
+                    new Vector2(290f, 48f), () =>
+                    {
+                        Close();
+                        if (Net.IsClientOnly) GameSync.RequestPhoneOffer(false);
+                        else gen.RejectOffer();
+                    });
                 y += 62f;
             }
             else
@@ -49,27 +59,18 @@ namespace PuntoMuerto
             {
                 AddBtn("Ordenar un encargo a la red", ref y, () =>
                 {
-                    var job = new Mission
-                    {
-                        Type = MissionType.Piezas,
-                        Title = "Operación propia: lote de piezas",
-                        Description = "Tu red consigue el material. Tú decides quién lo trabaja.",
-                        Pay = Random.Range(1500, 4501),
-                        PayIsDirty = true,
-                        DeadlineDay = g.Day + 2,
-                        WorkRequired = 30f,
-                        Noise = 0.5f,
-                        EsNocturna = true
-                    };
                     ModalUI.Show("Operación propia",
                         "¿Lo trabajas tú en el patio o lo delegas a un mando medio?\n(Delegar: 60% de la paga, sin Calor para ti)",
                         "Trabajarlo yo", () =>
                         {
-                            MissionSystem.I.Add(job);
-                            foreach (var st in RepairStation.All)
-                                if (st.Kind == StationKind.Patio && st.CurrentMission == null) { st.CurrentMission = job; break; }
+                            if (Net.IsClientOnly) GameSync.RequestJefeJob(false);
+                            else MissionGenerator.I.JefeOrder(false);
                         },
-                        "Delegarlo", () => MissionSystem.I.Delegate(job));
+                        "Delegarlo", () =>
+                        {
+                            if (Net.IsClientOnly) GameSync.RequestJefeJob(true);
+                            else MissionGenerator.I.JefeOrder(true);
+                        });
                 });
                 AddBtn("Consolidar tu posición como Jefe (FINAL)", ref y, () =>
                 {
@@ -102,6 +103,7 @@ namespace PuntoMuerto
                             aviso + "\n\n¿Presentas tu posición a Fabio? Esto no se puede deshacer.",
                             "Hacer la jugada", () =>
                             {
+                                if (Net.IsClientOnly) { GameSync.RequestConfrontar(); return; } // el host resuelve
                                 if (m.PuedeConfrontar)
                                 {
                                     GameManager.I.IsJefe = true;

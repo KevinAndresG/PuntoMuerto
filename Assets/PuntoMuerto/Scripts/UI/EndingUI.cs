@@ -27,11 +27,18 @@ namespace PuntoMuerto
             UIRoot.CreateButton(panel, "Continuar en Los Alisos", new Vector2(0.5f, 0f),
                 new Vector2(0f, 24f), new Vector2(340f, 56f), () =>
                 {
-                    UIRoot.PopModal();
-                    Destroy(panel.parent.gameObject);
-                    panel = null;
+                    // el cierre real lo hace EndingSystem.DoContinuar (compartido en red)
                     EndingSystem.I.ContinuarTemporada(tipo);
                 });
+        }
+
+        /// <summary>Cierra la pantalla si está abierta (también la cierra el espejo de red).</summary>
+        public void CloseIfOpen()
+        {
+            if (panel == null) return;
+            UIRoot.PopModal();
+            Destroy(panel.parent.gameObject);
+            panel = null;
         }
     }
 }

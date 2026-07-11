@@ -25,6 +25,7 @@ namespace PuntoMuerto
 
         void OnDayStart(int day)
         {
+            if (!Net.IsAuthority) return; // el host cobra; el cliente recibe el espejo
             // cuotas cada 7 días
             if (day % 7 != 1 || day == 1) return;
             for (int i = Prestamos.Count - 1; i >= 0; i--)

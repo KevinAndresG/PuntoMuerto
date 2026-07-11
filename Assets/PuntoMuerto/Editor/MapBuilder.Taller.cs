@@ -19,10 +19,12 @@ namespace PuntoMuerto.EditorTools
 
             // ---- garaje ----
             float wallH = 5f;
-            // pared trasera: hueco de la VENTANILLA (x29..31, alto 0.9..2.1) + portón peatonal al patio (x33..37)
+            // pared trasera: PUERTA al cuarto de la ventanilla (x29..31) + portón peatonal al patio (x33..37)
             Box("ParedTraseraA1", taller, new Vector3(22.6f, wallH / 2f, -20.7f), new Vector3(12.8f, wallH, 0.4f), "MuroVerde");
-            Box("VentAntepecho", taller, new Vector3(30f, 0.45f, -20.7f), new Vector3(2f, 0.9f, 0.4f), "MuroVerde");
-            Box("VentDintel", taller, new Vector3(30f, 3.55f, -20.7f), new Vector3(2f, 2.9f, 0.4f), "MuroVerde");
+            Box("PuertaCuartoDintel", taller, new Vector3(30f, 4.05f, -20.7f), new Vector3(2f, 1.9f, 0.4f), "MuroVerde");
+            Box("MarcoPuertaCuarto1", taller, new Vector3(29f, 1.55f, -20.7f), new Vector3(0.18f, 3.1f, 0.5f), "Madera");
+            Box("MarcoPuertaCuarto2", taller, new Vector3(31f, 1.55f, -20.7f), new Vector3(0.18f, 3.1f, 0.5f), "Madera");
+            Text3D("PRIVADO", taller, new Vector3(30f, 3.35f, -20.45f), 0.04f, new Color(0.9f, 0.6f, 0.3f), 180f);
             Box("ParedTraseraA2", taller, new Vector3(32f, wallH / 2f, -20.7f), new Vector3(2f, wallH, 0.4f), "MuroVerde");
             Box("ParedTraseraDintel", taller, new Vector3(35f, 4.4f, -20.7f), new Vector3(4.2f, 1.2f, 0.4f), "MuroVerde");
             Box("ParedTraseraB", taller, new Vector3(42.5f, wallH / 2f, -20.7f), new Vector3(11f, wallH, 0.4f), "MuroVerde");
@@ -82,11 +84,13 @@ namespace PuntoMuerto.EditorTools
             Box("ElevPoste1", taller, new Vector3(24.7f, 1.1f, -16f), new Vector3(0.3f, 2.2f, 0.3f), "Metal");
             Box("ElevPoste2", taller, new Vector3(28.3f, 1.1f, -16f), new Vector3(0.3f, 2.2f, 0.3f), "Metal");
 
-            // ---- letrero ABIERTO/CERRADO (colgado de la viga, junto a la recepción) ----
-            var shopSign = Empty("LetreroAbierto", taller, new Vector3(45.5f, 2.6f, -9.6f));
-            Box("Cartel", shopSign.transform, new Vector3(45.5f, 2.6f, -9.6f), new Vector3(1.1f, 0.55f, 0.08f), "Madera", 0f, false);
+            // ---- botón de pared ABIERTO/CERRADO en el pilar de recepción ----
+            // ShopSign crea en runtime la lámpara verde/roja y el cartel flotante sobre el pilar.
+            var shopSign = Empty("BotonTaller", taller, new Vector3(48f, 1.5f, -9.55f));
+            Box("BotonCaja", shopSign.transform, new Vector3(48f, 1.5f, -9.62f), new Vector3(0.45f, 0.62f, 0.14f), "MetalOscuro", 0f, false);
+            Box("BotonTapa", shopSign.transform, new Vector3(48f, 1.5f, -9.53f), new Vector3(0.28f, 0.28f, 0.08f), "LaminaRoja", 0f, false);
             var signCol = shopSign.AddComponent<BoxCollider>();
-            signCol.size = new Vector3(1.2f, 0.65f, 0.3f);
+            signCol.size = new Vector3(0.8f, 1f, 0.6f);
             shopSign.AddComponent<PuntoMuerto.ShopSign>();
 
             // ---- sala de espera INTERIOR (ala oeste del garaje) ----
@@ -225,32 +229,37 @@ namespace PuntoMuerto.EditorTools
             gd.Height = 4.2f;
         }
 
-        /// <summary>Cuartito techado del patio alrededor de la ventanilla: la fila sucia espera bajo techo.</summary>
+        /// <summary>Cuarto CERRADO de la ventanilla: se entra por la puerta desde el garaje (pared trasera)
+        /// y se atiende el negocio sucio por la ventanilla de la pared sur, que da al patio.
+        /// La gente de afuera no ve lo que pasa adentro: la fila sucia espera en el patio.</summary>
         static void BuildCuartoVentanilla(Transform taller)
         {
             var cuarto = Empty("CuartoVentanilla", taller, Vector3.zero).transform;
             Box("CuartoPiso", cuarto, new Vector3(30f, 0.05f, -23.15f), new Vector3(5.65f, 0.08f, 4.5f), "Concreto");
             Box("CuartoParedO", cuarto, new Vector3(27.2f, 1.5f, -23.1f), new Vector3(0.35f, 3f, 4.8f), "Madera");
             Box("CuartoParedE", cuarto, new Vector3(32.8f, 1.5f, -23.1f), new Vector3(0.35f, 3f, 4.8f), "Madera");
-            // pared sur con puerta (hueco x29..31)
+            // pared sur cerrada con hueco de VENTANILLA (x29..31, alto 0.9..2.1) hacia el patio
             Box("CuartoParedS1", cuarto, new Vector3(28.1f, 1.5f, -25.4f), new Vector3(2.2f, 3f, 0.35f), "Madera");
             Box("CuartoParedS2", cuarto, new Vector3(31.9f, 1.5f, -25.4f), new Vector3(2.2f, 3f, 0.35f), "Madera");
-            Box("CuartoDintel", cuarto, new Vector3(30f, 2.7f, -25.4f), new Vector3(2f, 0.6f, 0.35f), "Madera");
+            Box("CuartoAntepecho", cuarto, new Vector3(30f, 0.45f, -25.4f), new Vector3(2f, 0.9f, 0.35f), "Madera");
+            Box("CuartoDintel", cuarto, new Vector3(30f, 2.55f, -25.4f), new Vector3(2f, 0.9f, 0.35f), "Madera");
             Box("CuartoTecho", cuarto, new Vector3(30f, 3.05f, -23.1f), new Vector3(6.7f, 0.2f, 5.2f), "Lamina");
-            Text3D("VENTANILLA", cuarto, new Vector3(30f, 2.5f, -25.65f), 0.05f, new Color(0.9f, 0.6f, 0.3f), 0f);
+            Text3D("VENTANILLA", cuarto, new Vector3(30f, 2.8f, -25.65f), 0.05f, new Color(0.9f, 0.6f, 0.3f), 0f);
+            // mesita de atención del lado de adentro
+            Box("CuartoMesa", cuarto, new Vector3(30f, 0.45f, -24.6f), new Vector3(2.4f, 0.9f, 0.8f), "Madera");
 
-            // la ventanilla en sí: marco alrededor del hueco de la pared trasera + repisa
-            var backWin = Empty("Ventanilla", taller, new Vector3(30f, 1.5f, -20.7f));
-            Box("VentanillaMarcoL", backWin.transform, new Vector3(28.95f, 1.5f, -20.7f), new Vector3(0.14f, 1.4f, 0.5f), "Madera", 0f, false);
-            Box("VentanillaMarcoR", backWin.transform, new Vector3(31.05f, 1.5f, -20.7f), new Vector3(0.14f, 1.4f, 0.5f), "Madera", 0f, false);
-            Box("VentanillaMarcoT", backWin.transform, new Vector3(30f, 2.14f, -20.7f), new Vector3(2.24f, 0.14f, 0.5f), "Madera", 0f, false);
-            Box("VentanillaRepisa", backWin.transform, new Vector3(30f, 0.86f, -20.9f), new Vector3(2.3f, 0.1f, 0.9f), "MetalOscuro", 0f, false);
+            // la ventanilla en sí: marco alrededor del hueco de la pared sur + repisa hacia el patio
+            var backWin = Empty("Ventanilla", taller, new Vector3(30f, 1.5f, -25.4f));
+            Box("VentanillaMarcoL", backWin.transform, new Vector3(28.95f, 1.5f, -25.4f), new Vector3(0.14f, 1.4f, 0.45f), "Madera", 0f, false);
+            Box("VentanillaMarcoR", backWin.transform, new Vector3(31.05f, 1.5f, -25.4f), new Vector3(0.14f, 1.4f, 0.45f), "Madera", 0f, false);
+            Box("VentanillaMarcoT", backWin.transform, new Vector3(30f, 2.14f, -25.4f), new Vector3(2.24f, 0.14f, 0.45f), "Madera", 0f, false);
+            Box("VentanillaRepisa", backWin.transform, new Vector3(30f, 0.86f, -25.6f), new Vector3(2.3f, 0.1f, 0.9f), "MetalOscuro", 0f, false);
             var winCol = backWin.AddComponent<BoxCollider>();
-            winCol.size = new Vector3(2.2f, 1.5f, 1f);
+            winCol.size = new Vector3(2.2f, 1.5f, 1.2f);
             backWin.AddComponent<PuntoMuerto.BackWindow>();
             var winLight = new GameObject("LuzVentanilla").AddComponent<Light>();
             winLight.transform.SetParent(backWin.transform, false);
-            winLight.transform.position = new Vector3(30f, 2.6f, -22.5f);
+            winLight.transform.position = new Vector3(30f, 2.6f, -23.1f);
             winLight.type = LightType.Point;
             winLight.range = 6f; winLight.intensity = 1.3f;
             winLight.color = new Color(1f, 0.6f, 0.35f);

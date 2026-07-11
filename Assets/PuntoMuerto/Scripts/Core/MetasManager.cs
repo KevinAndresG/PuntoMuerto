@@ -35,6 +35,7 @@ namespace PuntoMuerto
 
         void OnDayStart(int day)
         {
+            if (!Net.IsAuthority) return; // el host decide el final; llega por espejo de red
             // Umbral crítico -90 sostenido 3 días => final "Caída" (GDD 2.2 / 7.2)
             if (Reputacion <= -90f)
             {

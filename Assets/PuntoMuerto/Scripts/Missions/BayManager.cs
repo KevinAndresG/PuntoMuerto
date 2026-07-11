@@ -97,14 +97,14 @@ namespace PuntoMuerto
             return car;
         }
 
-        /// <summary>Entrega: el carro sale del slot, el cliente que esperaba sube y se van juntos.</summary>
+        /// <summary>Entrega: el carro se queda en su slot, el cliente CAMINA hasta él,
+        /// se sube, y recién entonces el carro arranca hacia la salida.</summary>
         public void Deliver(Mission m)
         {
             if (m == null || m.Slot < 0) return;
 
             GameObject car;
             ClientDummy dummy;
-            Vector3 curb;
             Vector3[] exitPath;
             if (m.Slot >= 100)
             {
@@ -114,8 +114,8 @@ namespace PuntoMuerto
                 car = patioCars[i];
                 patioCars[i] = null;
                 dummy = DirtyReceptionSystem.I != null ? DirtyReceptionSystem.I.TakeWaiting(m) : null;
-                curb = new Vector3(39f, 0.08f, -41.5f); // frente a la rendija sur
-                exitPath = new[] { new Vector3(39f, 0.08f, -50f), new Vector3(20f, 0.08f, -62f) };
+                // sale por el portón sur de la cerca
+                exitPath = new[] { new Vector3(39f, 0.08f, -41.5f), new Vector3(39f, 0.08f, -50f), new Vector3(20f, 0.08f, -62f) };
             }
             else
             {
@@ -125,8 +125,9 @@ namespace PuntoMuerto
                 car = cars[i];
                 cars[i] = null;
                 dummy = ReceptionSystem.I != null ? ReceptionSystem.I.TakeWaiting(m) : null;
-                curb = new Vector3(35f, 0.08f, -4.5f); // parqueadero del frente
-                exitPath = new[] { new Vector3(48f, 0.08f, 2f), new Vector3(75f, 0.08f, 2f) };
+                // sale derecho por su abertura del frente y toma la calle
+                float ex = car != null ? car.transform.position.x : 35f;
+                exitPath = new[] { new Vector3(ex, 0.08f, -4.5f), new Vector3(48f, 0.08f, 2f), new Vector3(75f, 0.08f, 2f) };
             }
             m.Slot = -1;
             if (car == null)
@@ -137,54 +138,50 @@ namespace PuntoMuerto
 
             Destroy(car.GetComponent<CarJob>());
             var del = car.AddComponent<CarDelivery>();
-            del.Begin(curb, exitPath, dummy);
+            del.Begin(exitPath, dummy);
             if (dummy != null)
-                GameEvents.Notify(m.ClientName + " va por su carro.");
+                GameEvents.Notify(m.ClientName + " camina hacia su carro.");
         }
     }
 
-    /// <summary>Secuencia de entrega (solo runtime): carro sale al punto de recogida,
-    /// el cliente camina hasta él, "sube" y el carro se va.</summary>
+    /// <summary>Secuencia de entrega (solo runtime): el carro espera en el slot, el cliente
+    /// camina hasta la puerta del conductor, "sube" y el carro arranca hacia la salida.</summary>
     public class CarDelivery : MonoBehaviour
     {
         ClientDummy dummy;
         Vector3[] exitPath;
-        VehicleAI ai;
-        int phase;        // 0 = saliendo al punto, 1 = esperando al cliente, 2 = yéndose
+        bool leaving;
         float timeoutAt;
 
-        public void Begin(Vector3 curb, Vector3[] exit, ClientDummy d)
+        public void Begin(Vector3[] exit, ClientDummy d)
         {
             dummy = d;
             exitPath = exit;
-            ai = GetComponent<VehicleAI>();
-            if (ai == null) ai = gameObject.AddComponent<VehicleAI>();
-            ai.Speed = 4.5f;
-            ai.SetPath(MakePoints(transform.position, new[] { curb }), false, false);
-            timeoutAt = Time.time + 50f;
+            if (dummy != null)
+            {
+                dummy.MoveTo(transform.position - transform.right * 1.7f); // puerta del conductor
+                timeoutAt = Time.time + 60f;
+            }
+            else
+            {
+                timeoutAt = Time.time + 1.5f; // sin cliente visible: arranca casi de una
+            }
         }
 
         void Update()
         {
-            if (phase == 0 && (ai == null || ai.Finished))
-            {
-                phase = 1;
-                if (dummy != null)
-                    dummy.MoveTo(transform.position - transform.right * 1.6f);
-            }
-            else if (phase == 1)
-            {
-                bool aboard = dummy == null ||
-                    Vector3.Distance(dummy.transform.position, transform.position) < 2.4f;
-                if (aboard || Time.time > timeoutAt)
-                {
-                    if (dummy != null) Destroy(dummy.gameObject);
-                    dummy = null;
-                    phase = 2;
-                    ai.Speed = 7f;
-                    ai.SetPath(MakePoints(transform.position, exitPath), false, true);
-                }
-            }
+            if (leaving) return;
+            bool aboard = dummy == null ||
+                Vector3.Distance(dummy.transform.position, transform.position) < 2.6f;
+            if (!aboard && Time.time < timeoutAt) return;
+
+            if (dummy != null) Destroy(dummy.gameObject);
+            dummy = null;
+            leaving = true;
+            var ai = GetComponent<VehicleAI>();
+            if (ai == null) ai = gameObject.AddComponent<VehicleAI>();
+            ai.Speed = 5.5f;
+            ai.SetPath(MakePoints(transform.position, exitPath), false, true);
         }
 
         static Transform[] MakePoints(Vector3 start, Vector3[] rest)

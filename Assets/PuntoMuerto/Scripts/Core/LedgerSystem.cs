@@ -31,6 +31,7 @@ namespace PuntoMuerto
 
         void OnDayStart(int day)
         {
+            if (!Net.IsAuthority) return; // el host decide auditorías; el cliente recibe el espejo
             // el riesgo decae despacio; auditoría aleatoria si está alto
             RiesgoAuditoria = Mathf.Max(0f, RiesgoAuditoria - 2f);
             if (RiesgoAuditoria > 35f && Random.value < RiesgoAuditoria / 250f)

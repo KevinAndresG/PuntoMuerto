@@ -49,10 +49,22 @@ namespace PuntoMuerto
                 var inv = new int[6];
                 if (InventorySystem.I != null)
                     for (int i = 0; i < 6; i++) inv[i] = InventorySystem.I.Count((ItemType)i);
+                int nLoans = BankSystem.I != null ? BankSystem.I.Prestamos.Count : 0;
+                var loanCuotas = new int[nLoans];
+                var loanSemanas = new int[nLoans];
+                for (int i = 0; i < nLoans; i++)
+                {
+                    loanCuotas[i] = BankSystem.I.Prestamos[i].Cuota;
+                    loanSemanas[i] = BankSystem.I.Prestamos[i].SemanasRestantes;
+                }
                 SyncStateClientRpc(g.Day, g.CleanMoney, g.DirtyMoney,
                     m.DeudaPagada, m.Reputacion, m.Fabio, m.Leverage,
                     DayNightCycle.I != null ? DayNightCycle.I.Hour : 12f,
-                    ShopSign.Abierto, inv);
+                    ShopSign.Abierto, inv,
+                    LedgerSystem.I != null ? LedgerSystem.I.RiesgoAuditoria : 0f,
+                    LedgerSystem.I != null ? LedgerSystem.I.TotalLavado : 0,
+                    m.EvidenciaFalsa, m.ReportesAFabio, g.IsJefe,
+                    loanCuotas, loanSemanas);
             }
 
             // progreso de misiones activas (para que el otro vea la barra avanzar)
@@ -68,7 +80,9 @@ namespace PuntoMuerto
 
         [ClientRpc]
         void SyncStateClientRpc(int day, int clean, int dirty, int deuda, float rep, float fabio,
-            int leverage, float hour, bool signOpen, int[] inv)
+            int leverage, float hour, bool signOpen, int[] inv,
+            float riesgo, int lavado, int evidencia, int reportes, bool isJefe,
+            int[] loanCuotas, int[] loanSemanas)
         {
             if (IsServer) return; // el host ya tiene el estado
             var g = GameManager.I; var m = MetasManager.I;
@@ -80,10 +94,25 @@ namespace PuntoMuerto
             }
             g.CleanMoney = clean;
             g.DirtyMoney = dirty;
+            g.IsJefe = isJefe;
             m.DeudaPagada = deuda;
             m.Reputacion = rep;
             m.Fabio = fabio;
             m.Leverage = leverage;
+            m.EvidenciaFalsa = evidencia;
+            m.ReportesAFabio = reportes;
+            if (LedgerSystem.I != null)
+            {
+                LedgerSystem.I.RiesgoAuditoria = riesgo;
+                LedgerSystem.I.TotalLavado = lavado;
+            }
+            if (BankSystem.I != null && loanCuotas != null && loanSemanas != null)
+            {
+                var ps = BankSystem.I.Prestamos;
+                ps.Clear();
+                for (int i = 0; i < loanCuotas.Length; i++)
+                    ps.Add(new Loan { Cuota = loanCuotas[i], SemanasRestantes = loanSemanas[i] });
+            }
             if (DayNightCycle.I != null) DayNightCycle.I.Hour = hour;
             ShopSign.Abierto = signOpen;
             if (InventorySystem.I != null && inv != null) InventorySystem.I.SetAll(inv);
@@ -337,6 +366,197 @@ namespace PuntoMuerto
             GameManager.I.AddMoney(precio, true);
             MetasManager.I.CambiarFabio(2f);
             GameEvents.Notify("Lote vendido: +$" + precio.ToString("N0") + " (sucio).");
+        }
+
+        // ---------- libro, deuda y banco (cliente → host; el estado vuelve por el sync) ----------
+
+        public static void RequestLavar(int monto)
+        { if (I != null) I.LavarServerRpc(monto); }
+
+        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+        void LavarServerRpc(int monto)
+        {
+            if (LedgerSystem.I != null) LedgerSystem.I.Lavar(monto);
+        }
+
+        public static void RequestPagarDeuda(int monto)
+        { if (I != null) I.PagarDeudaServerRpc(monto); }
+
+        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+        void PagarDeudaServerRpc(int monto)
+        {
+            if (MetasManager.I != null) MetasManager.I.PagarDeuda(monto);
+        }
+
+        public static void RequestPrestamo(bool mediano)
+        { if (I != null) I.PrestamoServerRpc(mediano); }
+
+        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+        void PrestamoServerRpc(bool mediano)
+        {
+            if (BankSystem.I != null) BankSystem.I.PedirPrestamo(mediano);
+        }
+
+        // ---------- teléfono de Fabio: la oferta nocturna suena en ambos lados ----------
+
+        public static void MirrorOffer(Mission m)
+        { if (I != null && I.IsServer) I.OfferClientRpc(Pack(m)); }
+
+        [ClientRpc]
+        void OfferClientRpc(string json)
+        {
+            if (IsServer || MissionGenerator.I == null) return;
+            MissionGenerator.I.PendingFabioOffer = Unpack(json);
+            MissionGenerator.I.PhoneRinging = true;
+            GameEvents.Notify("El teléfono de la oficina está sonando. Es Fabio.");
+        }
+
+        public static void MirrorOfferCleared()
+        { if (I != null && I.IsServer) I.OfferClearedClientRpc(); }
+
+        [ClientRpc]
+        void OfferClearedClientRpc()
+        {
+            if (IsServer || MissionGenerator.I == null) return;
+            MissionGenerator.I.PendingFabioOffer = null;
+            MissionGenerator.I.PhoneRinging = false;
+        }
+
+        public static void RequestPhoneOffer(bool accept)
+        { if (I != null) I.PhoneOfferServerRpc(accept); }
+
+        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+        void PhoneOfferServerRpc(bool accept)
+        {
+            if (MissionGenerator.I == null) return;
+            if (accept) MissionGenerator.I.AcceptOffer();
+            else MissionGenerator.I.RejectOffer();
+        }
+
+        /// <summary>El host asignó un encargo a una estación del patio: espejarlo en los clientes.</summary>
+        public static void MirrorPatioJob(Mission m)
+        { if (I != null && I.IsServer) I.PatioJobClientRpc(Pack(m)); }
+
+        [ClientRpc]
+        void PatioJobClientRpc(string json)
+        {
+            if (IsServer || MissionSystem.I == null) return;
+            var w = Unpack(json);
+            var m = MissionSystem.I.FindById(w.Id);
+            if (m == null) { m = w; MissionSystem.I.Add(m); }
+            foreach (var st in RepairStation.All)
+                if (st.Kind == StationKind.Patio && st.CurrentMission == null)
+                { st.CurrentMission = m; break; }
+            GameEvents.Notify("El encargo espera en el patio trasero. Trabájenlo de noche.");
+        }
+
+        // ---------- recolección (pickup): paquetes espejados y acción vía host ----------
+
+        public static void MirrorPickupSpawn(Mission m, Vector3 pos, bool dropoff)
+        { if (I != null && I.IsServer) I.PickupSpawnClientRpc(Pack(m), pos, dropoff); }
+
+        [ClientRpc]
+        void PickupSpawnClientRpc(string json, Vector3 pos, bool dropoff)
+        {
+            if (IsServer || MissionSystem.I == null) return;
+            var w = Unpack(json);
+            var m = MissionSystem.I.FindById(w.Id);
+            if (m == null) { m = w; MissionSystem.I.Add(m); }
+            PickupPoint.CreateLocal(m, pos, dropoff);
+        }
+
+        public static void MirrorPickupTaken(int id, bool dropoff)
+        { if (I != null && I.IsServer) I.PickupTakenClientRpc(id, dropoff); }
+
+        [ClientRpc]
+        void PickupTakenClientRpc(int id, bool dropoff)
+        {
+            if (IsServer) return;
+            foreach (var pp in Object.FindObjectsByType<PickupPoint>(FindObjectsSortMode.None))
+                if (pp.Mission != null && pp.Mission.Id == id && pp.IsDropoff == dropoff)
+                    Object.Destroy(pp.gameObject);
+            if (MissionSystem.I != null)
+                MissionSystem.I.CarryingPickup = dropoff ? null : MissionSystem.I.FindById(id);
+        }
+
+        public static void RequestPickup(int id, bool dropoff)
+        { if (I != null) I.PickupServerRpc(id, dropoff); }
+
+        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+        void PickupServerRpc(int id, bool dropoff)
+        {
+            foreach (var pp in Object.FindObjectsByType<PickupPoint>(FindObjectsSortMode.None))
+                if (pp.Mission != null && pp.Mission.Id == id && pp.IsDropoff == dropoff)
+                { pp.DoInteract(); return; }
+        }
+
+        // ---------- finales y jefatura: decisiones compartidas ----------
+
+        public static void RequestEnding(int tipo)
+        { if (I != null) I.EndingServerRpc(tipo); }
+
+        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+        void EndingServerRpc(int tipo)
+        {
+            if (EndingSystem.I != null) EndingSystem.I.Trigger((EndingType)tipo);
+        }
+
+        public static void MirrorEnding(int tipo)
+        { if (I != null && I.IsServer) I.EndingClientRpc(tipo); }
+
+        [ClientRpc]
+        void EndingClientRpc(int tipo)
+        {
+            if (IsServer) return;
+            if (EndingSystem.I != null) EndingSystem.I.ShowMirror((EndingType)tipo);
+        }
+
+        public static void RequestContinuar(int tipo)
+        { if (I != null) I.ContinuarServerRpc(tipo); }
+
+        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+        void ContinuarServerRpc(int tipo)
+        {
+            if (EndingSystem.I != null) EndingSystem.I.ContinuarTemporada((EndingType)tipo);
+        }
+
+        public static void MirrorContinuar(int tipo)
+        { if (I != null && I.IsServer) I.ContinuarClientRpc(tipo); }
+
+        [ClientRpc]
+        void ContinuarClientRpc(int tipo)
+        {
+            if (IsServer) return;
+            if (EndingSystem.I != null) EndingSystem.I.DoContinuar((EndingType)tipo);
+        }
+
+        public static void RequestConfrontar()
+        { if (I != null) I.ConfrontarServerRpc(); }
+
+        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+        void ConfrontarServerRpc()
+        {
+            var m = MetasManager.I;
+            if (m == null || GameManager.I == null) return;
+            if (m.PuedeConfrontar)
+            {
+                GameManager.I.IsJefe = true;
+                GameEvents.Notify("Fabio escuchó la jugada del equipo: Los Alisos responde ante ustedes ahora.");
+                GameEvents.OnMetasChanged?.Invoke();
+            }
+            else if (EndingSystem.I != null)
+            {
+                EndingSystem.I.Trigger(EndingType.GolpeFallido);
+            }
+        }
+
+        public static void RequestJefeJob(bool delegar)
+        { if (I != null) I.JefeJobServerRpc(delegar); }
+
+        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+        void JefeJobServerRpc(bool delegar)
+        {
+            if (MissionGenerator.I != null) MissionGenerator.I.JefeOrder(delegar);
         }
     }
 }

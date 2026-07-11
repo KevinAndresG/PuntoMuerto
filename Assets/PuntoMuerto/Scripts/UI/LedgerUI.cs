@@ -29,11 +29,11 @@ namespace PuntoMuerto
             y += 32f;
             float yy1 = y;
             UIRoot.CreateButton(panel, "Lavar $500", new Vector2(0.5f, 1f), new Vector2(-230f, -yy1), new Vector2(200f, 44f),
-                () => { LedgerSystem.I.Lavar(500); Refresh(); });
+                () => { Lavar(500); });
             UIRoot.CreateButton(panel, "Lavar $2.000", new Vector2(0.5f, 1f), new Vector2(0f, -yy1), new Vector2(200f, 44f),
-                () => { LedgerSystem.I.Lavar(2000); Refresh(); });
+                () => { Lavar(2000); });
             UIRoot.CreateButton(panel, "Lavar todo", new Vector2(0.5f, 1f), new Vector2(230f, -yy1), new Vector2(200f, 44f),
-                () => { LedgerSystem.I.Lavar(GameManager.I.DirtyMoney); Refresh(); });
+                () => { Lavar(GameManager.I.DirtyMoney); });
             y += 60f;
 
             UIRoot.CreateText(panel, "— Pagar deuda del banco (solo dinero limpio a la vista) —", 18, UIRoot.TextColor,
@@ -41,11 +41,11 @@ namespace PuntoMuerto
             y += 32f;
             float yy2 = y;
             UIRoot.CreateButton(panel, "Pagar $1.000", new Vector2(0.5f, 1f), new Vector2(-230f, -yy2), new Vector2(200f, 44f),
-                () => { MetasManager.I.PagarDeuda(1000); Refresh(); });
+                () => { Pagar(1000); });
             UIRoot.CreateButton(panel, "Pagar $5.000", new Vector2(0.5f, 1f), new Vector2(0f, -yy2), new Vector2(200f, 44f),
-                () => { MetasManager.I.PagarDeuda(5000); Refresh(); });
+                () => { Pagar(5000); });
             UIRoot.CreateButton(panel, "Pagar $20.000", new Vector2(0.5f, 1f), new Vector2(230f, -yy2), new Vector2(200f, 44f),
-                () => { MetasManager.I.PagarDeuda(20000); Refresh(); });
+                () => { Pagar(20000); });
             y += 60f;
 
             UIRoot.CreateText(panel, "— Préstamos (riesgo real: cuota semanal) —", 18, UIRoot.TextColor,
@@ -53,13 +53,37 @@ namespace PuntoMuerto
             y += 32f;
             float yy3 = y;
             UIRoot.CreateButton(panel, "Pequeño: $8.000 / 10 sem", new Vector2(0.5f, 1f), new Vector2(-160f, -yy3), new Vector2(300f, 44f),
-                () => { BankSystem.I.PedirPrestamo(false); Refresh(); });
+                () => { Prestamo(false); });
             UIRoot.CreateButton(panel, "Mediano: $20.000 / 14 sem", new Vector2(0.5f, 1f), new Vector2(160f, -yy3), new Vector2(300f, 44f),
-                () => { BankSystem.I.PedirPrestamo(true); Refresh(); });
+                () => { Prestamo(true); });
 
             UIRoot.CreateButton(panel, "Cerrar el libro", new Vector2(0.5f, 0f), new Vector2(0f, 20f),
                 new Vector2(240f, 48f), Close);
 
+            // el estado puede cambiar por red (host ejecuta y sincroniza): refrescar en vivo
+            GameEvents.OnMetasChanged += Refresh;
+            Refresh();
+        }
+
+        // en multijugador el cliente pide y el host ejecuta; el estado vuelve por el sync
+        void Lavar(int monto)
+        {
+            if (Net.IsClientOnly) GameSync.RequestLavar(monto);
+            else LedgerSystem.I.Lavar(monto);
+            Refresh();
+        }
+
+        void Pagar(int monto)
+        {
+            if (Net.IsClientOnly) GameSync.RequestPagarDeuda(monto);
+            else MetasManager.I.PagarDeuda(monto);
+            Refresh();
+        }
+
+        void Prestamo(bool mediano)
+        {
+            if (Net.IsClientOnly) GameSync.RequestPrestamo(mediano);
+            else BankSystem.I.PedirPrestamo(mediano);
             Refresh();
         }
 
@@ -81,6 +105,7 @@ namespace PuntoMuerto
         void Close()
         {
             if (panel == null) return;
+            GameEvents.OnMetasChanged -= Refresh;
             UIRoot.PopModal();
             Destroy(panel.parent.gameObject);
             panel = null;

@@ -15,6 +15,15 @@ namespace PuntoMuerto
         public void Trigger(EndingType tipo)
         {
             if (EndingShown) return;
+            if (Net.IsClientOnly) { GameSync.RequestEnding((int)tipo); return; } // el host decide
+            GameSync.MirrorEnding((int)tipo);
+            ShowMirror(tipo);
+        }
+
+        /// <summary>Muestra la pantalla de final localmente (host o espejo de red en el cliente).</summary>
+        public void ShowMirror(EndingType tipo)
+        {
+            if (EndingShown) return;
             EndingShown = true;
             var m = MetasManager.I;
             var g = GameManager.I;
@@ -64,8 +73,17 @@ namespace PuntoMuerto
             if (ui != null) ui.Show(titulo, texto, stats, tipo);
         }
 
-        /// <summary>Botón "Continuar en Los Alisos" (GDD 7.1 → sección 8).</summary>
+        /// <summary>Botón "Continuar en Los Alisos" (GDD 7.1 → sección 8). En red la decisión
+        /// es compartida: quien pulse, continúa para los dos.</summary>
         public void ContinuarTemporada(EndingType tipo)
+        {
+            if (Net.IsClientOnly) { GameSync.RequestContinuar((int)tipo); return; }
+            GameSync.MirrorContinuar((int)tipo);
+            DoContinuar(tipo);
+        }
+
+        /// <summary>Aplica la continuación localmente (host o espejo de red en el cliente).</summary>
+        public void DoContinuar(EndingType tipo)
         {
             EndingShown = false;
             GameManager.I.TemporadaContinua = true;
@@ -79,6 +97,8 @@ namespace PuntoMuerto
                 MetasManager.I.Fabio = 10f;
                 MetasManager.I.Leverage = 0;
             }
+            var ui = Object.FindFirstObjectByType<EndingUI>();
+            if (ui != null) ui.CloseIfOpen();
             GameManager.I.SetPaused(false);
             GameEvents.Notify("Temporada Continua: Los Alisos sigue su curso.");
         }

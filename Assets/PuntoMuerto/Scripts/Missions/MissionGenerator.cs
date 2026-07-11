@@ -117,6 +117,7 @@ namespace PuntoMuerto
                     PendingFabioOffer = GenerateFabioOffer();
                     PhoneRinging = true;
                     GameEvents.Notify("El teléfono de la oficina está sonando. Es Fabio.");
+                    GameSync.MirrorOffer(PendingFabioOffer); // que también suene donde el socio
                 }
             }
         }
@@ -356,13 +357,14 @@ namespace PuntoMuerto
             return m;
         }
 
-        /// <summary>Aceptar oferta desde el teléfono.</summary>
+        /// <summary>Aceptar oferta desde el teléfono (solo autoridad; el cliente pide por GameSync).</summary>
         public void AcceptOffer()
         {
             if (PendingFabioOffer == null) return;
             var m = PendingFabioOffer;
             PendingFabioOffer = null;
             PhoneRinging = false;
+            GameSync.MirrorOfferCleared();
             MissionSystem.I.Add(m);
 
             if (m.Type == MissionType.Recoleccion)
@@ -373,6 +375,7 @@ namespace PuntoMuerto
             {
                 var patio = RepairStation.All.FirstOrDefault(r => r.Kind == StationKind.Patio && r.CurrentMission == null);
                 if (patio != null) patio.CurrentMission = m;
+                GameSync.MirrorPatioJob(m);
                 GameEvents.Notify("El encargo espera en el patio trasero. Trabájalo de noche.");
             }
         }
@@ -382,7 +385,37 @@ namespace PuntoMuerto
             if (PendingFabioOffer == null) return;
             PendingFabioOffer = null;
             PhoneRinging = false;
+            GameSync.MirrorOfferCleared();
             MetasManager.I.CambiarFabio(Random.Range(-20f, -10f), "Rechazaste el encargo");
+        }
+
+        /// <summary>Operación propia del Jefe (GDD 6.3). Solo autoridad; el cliente pide por GameSync.</summary>
+        public void JefeOrder(bool delegar)
+        {
+            if (GameManager.I == null || !GameManager.I.IsJefe) return;
+            var job = new Mission
+            {
+                Type = MissionType.Piezas,
+                Title = "Operación propia: lote de piezas",
+                Description = "Tu red consigue el material. Tú decides quién lo trabaja.",
+                Pay = Random.Range(1500, 4501),
+                PayIsDirty = true,
+                DeadlineDay = GameManager.I.Day + 2,
+                WorkRequired = 30f,
+                Noise = 0.5f,
+                EsNocturna = true
+            };
+            if (delegar)
+            {
+                MissionSystem.I.Delegate(job);
+                return;
+            }
+            MissionSystem.I.Add(job);
+            foreach (var st in RepairStation.All)
+                if (st.Kind == StationKind.Patio && st.CurrentMission == null)
+                { st.CurrentMission = job; break; }
+            GameSync.MirrorPatioJob(job);
+            GameEvents.Notify("El encargo espera en el patio trasero. Trabájalo de noche.");
         }
     }
 }

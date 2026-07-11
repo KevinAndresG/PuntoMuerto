@@ -2,7 +2,9 @@ using UnityEngine;
 
 namespace PuntoMuerto
 {
-    /// <summary>Punto de recolección (familia C): recoger paquete y llevarlo al patio.</summary>
+    /// <summary>Punto de recolección (familia C): recoger paquete y llevarlo al patio.
+    /// En multijugador el host es la autoridad: los paquetes se espejan en los clientes
+    /// y cualquiera de los dos socios puede recoger/entregar (el equipo carga como uno).</summary>
     public class PickupPoint : MonoBehaviour, IInteractable
     {
         public Mission Mission;
@@ -14,6 +16,19 @@ namespace PuntoMuerto
 
         public void Interact(PlayerInteraction p)
         {
+            if (Net.IsClientOnly)
+            {
+                GameSync.RequestPickup(Mission.Id, IsDropoff); // el host ejecuta y espeja
+                return;
+            }
+            DoInteract();
+        }
+
+        /// <summary>Lógica real (solo autoridad): también la invoca GameSync cuando pide un cliente.</summary>
+        public void DoInteract()
+        {
+            if (Mission == null) return;
+            GameSync.MirrorPickupTaken(Mission.Id, IsDropoff);
             if (!IsDropoff)
             {
                 MissionSystem.I.CarryingPickup = Mission;
@@ -36,6 +51,7 @@ namespace PuntoMuerto
             if (root != null && root.transform.childCount > 0)
                 pos = root.transform.GetChild(Random.Range(0, root.transform.childCount)).position;
             Create(m, pos, false);
+            GameSync.MirrorPickupSpawn(m, pos, false);
             GameEvents.Notify("Punto de recogida marcado: busca el paquete en el pueblo.");
         }
 
@@ -44,7 +60,11 @@ namespace PuntoMuerto
             var patio = GameObject.Find("Taller/PatioCentro");
             Vector3 pos = patio != null ? patio.transform.position : new Vector3(48f, 0f, -34f);
             Create(m, pos, true);
+            GameSync.MirrorPickupSpawn(m, pos, true);
         }
+
+        /// <summary>Espejo en el cliente: crea el paquete sin volver a espejar.</summary>
+        public static void CreateLocal(Mission m, Vector3 pos, bool dropoff) => Create(m, pos, dropoff);
 
         static void Create(Mission m, Vector3 pos, bool dropoff)
         {

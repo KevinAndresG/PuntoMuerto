@@ -54,6 +54,15 @@ namespace PuntoMuerto
 
         void Update()
         {
+            // en red, la completa el host: soltar la misión cuando llegue el espejo
+            if (CurrentMission != null && CurrentMission.State == MissionState.Completada)
+            {
+                CurrentMission = null;
+                working = false;
+                SetSparks(false);
+                HUDController.SetWorkProgress(-1f, null, 0f);
+                return;
+            }
             if (!working || CurrentMission == null) { SetSparks(false); return; }
             var kb = Keyboard.current;
             bool holding = kb != null && kb.eKey.isPressed;
