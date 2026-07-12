@@ -13,7 +13,7 @@ namespace PuntoMuerto.EditorTools
         {
             new Vector3(-50f, 0f, 20f), new Vector3(-30f, 0f, 30f), new Vector3(-50f, 0f, 45f),
             new Vector3(-14f, 0f, 45f), new Vector3(-30f, 0f, -20f), new Vector3(-50f, 0f, -34f),
-            new Vector3(-24f, 0f, -48f), new Vector3(14f, 0f, -28f), new Vector3(16f, 0f, -48f),
+            new Vector3(-24f, 0f, -48f), new Vector3(13f, 0f, -32f), new Vector3(16f, 0f, -48f),
             new Vector3(52f, 0f, 14f)
         };
         static readonly float[] HouseRots = { 90f, 180f, 90f, 270f, 180f, 90f, 0f, 270f, 0f, 180f };

@@ -52,12 +52,14 @@ namespace PuntoMuerto
         Vector3 pilePoint;
         bool finishing;
 
-        // elevador hidráulico (mejora): sube el carro en la bahía 1 para el trabajo bajo chasis
+        // elevador hidráulico (mejora): sube el carro en la bahía para el trabajo bajo chasis.
+        // El estado del elevador vive en un CarLift pegado al carro, así sobrevive a las pausas (ESC)
+        // y el carro NO baja hasta que la obra termina.
         bool onLift;
         float liftGroundY;
-        float liftT;
+        bool liftNuevo;
         const float LiftHeight = 1.15f;
-        readonly List<GameObject> liftArms = new List<GameObject>();
+        CarLift carLift;
         float durScale = 1f;   // el elevador agiliza el trabajo (pasos más cortos)
 
         // ---------- arranque ----------
@@ -84,20 +86,29 @@ namespace PuntoMuerto
 
             rigRoot = new GameObject("RigTrabajo");
 
-            // elevador: si está comprado y es un trabajo bajo chasis en la bahía 1, subimos el carro
-            // ANTES de armar los pasos, para que las anclas de cámara/props se horneen ya elevadas.
+            // elevador: si está comprado y es un trabajo bajo chasis en la bahía, dejamos el carro
+            // elevado ANTES de armar los pasos, para hornear las anclas de cámara/props ya arriba.
+            // Si el carro ya traía un CarLift (obra pausada con ESC) seguimos con ese, sin re-subir.
             onLift = ShouldUseLift();
             if (onLift)
             {
                 durScale = 0.7f;                       // trabajo más cómodo → pasos más rápidos
-                liftGroundY = car.position.y;
-                car.position += Vector3.up * LiftHeight;
+                carLift = car.GetComponent<CarLift>();
+                liftNuevo = carLift == null;
+                if (liftNuevo) carLift = car.gameObject.AddComponent<CarLift>();
+                liftGroundY = liftNuevo ? car.position.y : carLift.GroundY;
+                var lp = car.position; lp.y = liftGroundY + LiftHeight; car.position = lp;
             }
 
             BuildSteps();
             if (pasos.Count == 0)
             {
-                if (onLift) { var p = car.position; p.y = liftGroundY; car.position = p; onLift = false; }
+                if (onLift)
+                {
+                    var p = car.position; p.y = liftGroundY; car.position = p;
+                    if (liftNuevo && carLift != null) Destroy(carLift);
+                    carLift = null; onLift = false;
+                }
                 Cleanup();
                 return;
             }
@@ -118,7 +129,7 @@ namespace PuntoMuerto
             // reanudar con el carro AÚN elevado: las piezas montadas antes de pausar usan posiciones
             // horneadas a esa altura, así caen en su sitio.
             int start = RestoreProgress();
-            if (onLift) SetupLift(animar: start == 0);
+            if (onLift) carLift.Setup(liftGroundY, LiftHeight, animar: liftNuevo && start == 0);
             EnterStep(start);
         }
 
@@ -129,44 +140,13 @@ namespace PuntoMuerto
             if (car == null || mission == null) return false;
             if (UpgradeSystem.I == null || !UpgradeSystem.I.Tiene("elevador")) return false;
             if (car.GetComponent<CarJob>() == null) return false;          // solo carros de cliente en bahía
-            // bahías en x = 26.5, 35, 43.5 (z = -16); el carro debe estar sobre una de ellas
-            bool enBahia = false;
-            for (int i = 0; i < 3; i++)
-            {
-                Vector3 d = car.position - new Vector3(26.5f + i * 8.5f, car.position.y, -16f);
-                if (d.sqrMagnitude <= 6.25f) { enBahia = true; break; }    // <2.5m de una bahía
-            }
+            // bahías en la franja z≈-16, x≈22..46; el carro debe estar sobre ella
+            bool enBahia = Mathf.Abs(car.position.z + 16f) <= 2.5f &&
+                           car.position.x >= 18f && car.position.x <= 50f;
             if (!enBahia) return false;
             string t = mission.Title.ToLowerInvariant();
             return t.Contains("aceite") || t.Contains("llanta") || t.Contains("freno")
                 || t.Contains("suspensión") || t.Contains("transmisión") || t.Contains("desarme");
-        }
-
-        /// <summary>Brazos rojos del elevador bajo el carro. En una obra nueva (animar) el carro
-        /// arranca en el piso y sube; al reanudar ya queda arriba.</summary>
-        void SetupLift(bool animar)
-        {
-            for (int s = -1; s <= 1; s += 2)
-            {
-                var arm = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                arm.name = "BrazoElevador";
-                Destroy(arm.GetComponent<Collider>());
-                arm.transform.SetParent(car, false);
-                arm.transform.localPosition = new Vector3(0f, -0.28f, s * 0.95f);
-                arm.transform.localScale = new Vector3(2.2f, 0.14f, 0.35f);
-                var r = arm.GetComponent<Renderer>();
-                r.material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-                r.material.SetColor("_BaseColor", new Color(0.75f, 0.15f, 0.12f));
-                liftArms.Add(arm);
-            }
-            if (animar)
-            {
-                // el carro arranca en el piso y sube durante el primer segundo (se ve elevar)
-                var p = car.position; p.y = liftGroundY; car.position = p;
-                liftT = 0f;
-                GameEvents.Notify("Elevador hidráulico: el carro sube y el trabajo bajo el chasis es más rápido.");
-            }
-            else liftT = 1f; // reanudado: el carro ya está arriba
         }
 
         /// <summary>Obra reanudada tras pausar con ESC: adelanta los pasos ya cubiertos por WorkDone
@@ -211,15 +191,6 @@ namespace PuntoMuerto
             if (kb != null && kb.escapeKey.wasPressedThisFrame) { Finish(false); return; }
             if (mission == null) { Finish(false); return; }
             if (mission.State == MissionState.Completada) { Finish(true); return; }
-
-            // el elevador sube el carro durante el primer segundo de la obra
-            if (onLift && liftT < 1f && car != null)
-            {
-                liftT = Mathf.MoveTowards(liftT, 1f, Time.deltaTime / 1.1f);
-                var cp = car.position;
-                cp.y = Mathf.Lerp(liftGroundY, liftGroundY + LiftHeight, Mathf.SmoothStep(0f, 1f, liftT));
-                car.position = cp;
-            }
 
             var p = pasos[idx];
 
@@ -279,6 +250,28 @@ namespace PuntoMuerto
             }
         }
 
+        /// <summary>Trae la cámara hacia el punto de trabajo si una pared (u otro sólido de escena)
+        /// se interpone: raycast desde el objetivo hacia el ancla deseada, ignorando el carro y los
+        /// props del rig. Así, en una bahía pegada a un muro, se ve el carro de cerca y nunca la pared.</summary>
+        Vector3 ClampCamInside(Vector3 target, Vector3 desired)
+        {
+            Vector3 dir = desired - target;
+            float dist = dir.magnitude;
+            if (dist < 0.05f) return desired;
+            dir /= dist;
+            var hits = Physics.RaycastAll(target, dir, dist, ~0, QueryTriggerInteraction.Ignore);
+            float nearest = dist;
+            foreach (var h in hits)
+            {
+                var t = h.collider.transform;
+                if (car != null && (t == car || t.IsChildOf(car))) continue;
+                if (rigRoot != null && t.IsChildOf(rigRoot.transform)) continue;
+                if (h.distance < nearest) nearest = h.distance;
+            }
+            if (nearest < dist) return target + dir * Mathf.Max(0.5f, nearest - 0.35f);
+            return desired;
+        }
+
         bool PointerOver(GameObject target, Mouse mouse)
         {
             if (cam == null) return false;
@@ -294,6 +287,9 @@ namespace PuntoMuerto
         {
             idx = i;
             var p = pasos[i];
+            // la cámara del paso no debe atravesar una pared (bahías pegadas a la oficina/estantería):
+            // si hay muro entre el punto de trabajo y el ancla de cámara, la traemos hacia adentro.
+            p.CamPos = ClampCamInside(p.CamMira, p.CamPos);
             highlightMat = null;
             if (p.Target != null)
             {
@@ -329,6 +325,9 @@ namespace PuntoMuerto
             finishing = true;
             HUDController.SetWorkProgress(-1f, null, 0f);
 
+            // el carro baja del elevador SOLO al terminar la obra; al pausar con ESC se queda arriba
+            if (onLift && carLift != null && completed) carLift.Lower();
+
             if (completed && car != null)
             {
                 // el carro de un encargo del patio se lo llevan al terminar
@@ -347,10 +346,6 @@ namespace PuntoMuerto
         void Cleanup()
         {
             SetWorkLight(false);
-            // bajar el carro del elevador y quitar los brazos (el carro queda parado normal en la bahía)
-            if (onLift && car != null) { var p = car.position; p.y = liftGroundY; car.position = p; }
-            foreach (var a in liftArms) if (a != null) Destroy(a);
-            liftArms.Clear();
             if (hintPanel != null) { Destroy(hintPanel.gameObject); hintPanel = null; }
             if (rigRoot != null) Destroy(rigRoot);
             if (Current == this)
@@ -496,28 +491,37 @@ namespace PuntoMuerto
                 new Vector3(0.17f, 0.045f, 0.17f), Gris);
             tuerca.transform.rotation = Quaternion.FromToRotation(Vector3.up, outward);
 
+            // La llanta nueva y su tuerca se crean OCULTAS: mientras aflojas y sacas la vieja no deben
+            // taparte el cubo ni las tuercas (antes la nueva se apoyaba entre la cámara y la rueda y
+            // tapaba todo, había que adivinar). Aparecen recién al sacar la vieja, con el hueco libre.
+            GameObject nueva = null, tuerca2 = null;
+            if (!soloSacar)
+            {
+                nueva = Prop(PrimitiveType.Cylinder, "LlantaNueva", wPos + outward * 0.95f + Vector3.up * 0.02f,
+                    new Vector3(0.64f, 0.12f, 0.64f), new Color(0.05f, 0.05f, 0.05f));
+                nueva.transform.rotation = Quaternion.FromToRotation(Vector3.up, outward);
+                nueva.SetActive(false);
+                tuerca2 = Prop(PrimitiveType.Cylinder, "TuercaNueva", wPos + outward * 0.11f,
+                    new Vector3(0.17f, 0.045f, 0.17f), Gris);
+                tuerca2.transform.rotation = Quaternion.FromToRotation(Vector3.up, outward);
+                tuerca2.SetActive(false);
+            }
+
             Step(Accion.Mantener, "Afloja la tuerca de la " + etiqueta, tuerca, 1f, camPos, wPos,
                 girar: true, alTerminar: () => ToPile(tuerca));
             Step(Accion.Mantener, "Saca la " + etiqueta + " vieja", rueda, 0.8f, camPos, wPos,
-                alTerminar: () => ToPile(rueda));
+                alTerminar: () => { ToPile(rueda); if (nueva != null) nueva.SetActive(true); });
 
             if (soloSacar) return;
 
-            // la llanta nueva se apoya JUNTO al cubo, entre la cámara y la rueda: así queda en
-            // cuadro y se puede clicar (antes iba al montón lateral, fuera del encuadre).
-            var nueva = Prop(PrimitiveType.Cylinder, "LlantaNueva", wPos + outward * 0.95f + Vector3.up * 0.02f,
-                new Vector3(0.64f, 0.12f, 0.64f), new Color(0.05f, 0.05f, 0.05f));
-            nueva.transform.rotation = Quaternion.FromToRotation(Vector3.up, outward);
             Step(Accion.Clic, "Monta la " + etiqueta + " nueva", nueva, 1f, camPos, wPos,
                 alTerminar: () =>
                 {
                     nueva.transform.SetParent(car, true);
                     nueva.transform.position = wPos;
                     nueva.transform.rotation = car.rotation * Quaternion.Euler(0f, 0f, 90f);
+                    tuerca2.SetActive(true);
                 });
-            var tuerca2 = Prop(PrimitiveType.Cylinder, "TuercaNueva", wPos + outward * 0.11f,
-                new Vector3(0.17f, 0.045f, 0.17f), Gris);
-            tuerca2.transform.rotation = Quaternion.FromToRotation(Vector3.up, outward);
             Step(Accion.Mantener, "Aprieta la tuerca", tuerca2, 0.8f, camPos, wPos, girar: true);
         }
 
@@ -537,30 +541,36 @@ namespace PuntoMuerto
             var tuerca = Prop(PrimitiveType.Cylinder, "Tuerca", wPos + outward * 0.11f,
                 new Vector3(0.17f, 0.045f, 0.17f), Gris);
             tuerca.transform.rotation = Quaternion.FromToRotation(Vector3.up, outward);
+            // llanta nueva y tuerca ocultas: no deben tapar el cubo/caliper mientras trabajas.
+            // La llanta aparece al terminar de cambiar las pastillas; la tuerca, al remontar la llanta.
+            var nueva = Prop(PrimitiveType.Cylinder, "LlantaNueva", wPos + outward * 0.95f + Vector3.up * 0.02f,
+                new Vector3(0.64f, 0.12f, 0.64f), new Color(0.05f, 0.05f, 0.05f));
+            nueva.transform.rotation = Quaternion.FromToRotation(Vector3.up, outward);
+            nueva.SetActive(false);
+            var tuerca2 = Prop(PrimitiveType.Cylinder, "TuercaNueva", wPos + outward * 0.11f,
+                new Vector3(0.17f, 0.045f, 0.17f), Gris);
+            tuerca2.transform.rotation = Quaternion.FromToRotation(Vector3.up, outward);
+            tuerca2.SetActive(false);
+
             Step(Accion.Mantener, "Afloja la tuerca", tuerca, 1f, camPos, wPos, girar: true,
                 alTerminar: () => ToPile(tuerca));
             Step(Accion.Mantener, "Saca la llanta", rueda, 0.8f, camPos, wPos, alTerminar: () => ToPile(rueda));
 
             var caliper = Prop(PrimitiveType.Cube, "Freno", wPos - outward * 0.05f, new Vector3(0.3f, 0.34f, 0.3f), Oxido);
             var pastilla = Step(Accion.Frotar, "Cambia las pastillas y ajusta la suspensión", caliper, 1.5f,
-                wPos + outward * 1.6f + Vector3.up * 0.5f, wPos);
+                wPos + outward * 1.6f + Vector3.up * 0.5f, wPos, alTerminar: () => nueva.SetActive(true));
             pastilla.Tinte = caliper.GetComponent<Renderer>();
             pastilla.TinteDe = Oxido;
             pastilla.TinteA = new Color(0.75f, 0.2f, 0.15f);
 
-            var nueva = Prop(PrimitiveType.Cylinder, "LlantaNueva", wPos + outward * 0.95f + Vector3.up * 0.02f,
-                new Vector3(0.64f, 0.12f, 0.64f), new Color(0.05f, 0.05f, 0.05f));
-            nueva.transform.rotation = Quaternion.FromToRotation(Vector3.up, outward);
             Step(Accion.Clic, "Monta la llanta de nuevo", nueva, 1f, camPos, wPos,
                 alTerminar: () =>
                 {
                     nueva.transform.SetParent(car, true);
                     nueva.transform.position = wPos;
                     nueva.transform.rotation = car.rotation * Quaternion.Euler(0f, 0f, 90f);
+                    tuerca2.SetActive(true);
                 });
-            var tuerca2 = Prop(PrimitiveType.Cylinder, "TuercaNueva", wPos + outward * 0.11f,
-                new Vector3(0.17f, 0.045f, 0.17f), Gris);
-            tuerca2.transform.rotation = Quaternion.FromToRotation(Vector3.up, outward);
             Step(Accion.Mantener, "Aprieta la tuerca", tuerca2, 0.8f, camPos, wPos, girar: true);
         }
 
@@ -893,5 +903,80 @@ namespace PuntoMuerto
             return r != null && r.material.HasProperty("_BaseColor")
                 ? r.material.GetColor("_BaseColor") : new Color(0.4f, 0.4f, 0.42f);
         }
+    }
+
+    /// <summary>Estado del elevador pegado al carro de una bahía. Vive en el carro (no en el minijuego),
+    /// así sobrevive a las pausas con ESC: el carro se queda ARRIBA hasta que la obra termina y recién
+    /// ahí se llama Lower(). Sube animado al crearse (si se pide) y guarda los brazos rojos. Solo runtime.</summary>
+    public class CarLift : MonoBehaviour
+    {
+        public float GroundY;
+        public float Height = 1.15f;
+        readonly System.Collections.Generic.List<GameObject> arms = new System.Collections.Generic.List<GameObject>();
+        float t = 1f;            // 0 = en el piso, 1 = arriba del todo
+        bool rising, lowering;
+
+        /// <summary>Deja el carro elevado. animar = arranca en el piso y sube a la vista (obra nueva);
+        /// si no, aparece ya arriba (obra reanudada o cargada de un guardado).</summary>
+        public void Setup(float groundY, float height, bool animar)
+        {
+            GroundY = groundY;
+            Height = height;
+            if (arms.Count == 0) BuildArms();
+            if (animar)
+            {
+                t = 0f; rising = true;
+                GameEvents.Notify("Elevador hidráulico: el carro sube. El trabajo bajo el chasis es más rápido.");
+            }
+            else t = 1f;
+            ApplyY();
+        }
+
+        void BuildArms()
+        {
+            for (int s = -1; s <= 1; s += 2)
+            {
+                var arm = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                arm.name = "BrazoElevador";
+                Destroy(arm.GetComponent<Collider>());
+                arm.transform.SetParent(transform, false);
+                arm.transform.localPosition = new Vector3(0f, -0.28f, s * 0.95f);
+                arm.transform.localScale = new Vector3(2.2f, 0.14f, 0.35f);
+                var r = arm.GetComponent<Renderer>();
+                r.material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+                r.material.SetColor("_BaseColor", new Color(0.75f, 0.15f, 0.12f));
+                arms.Add(arm);
+            }
+        }
+
+        void ApplyY()
+        {
+            var p = transform.position;
+            p.y = Mathf.Lerp(GroundY, GroundY + Height, Mathf.SmoothStep(0f, 1f, t));
+            transform.position = p;
+        }
+
+        void Update()
+        {
+            if (rising)
+            {
+                t = Mathf.MoveTowards(t, 1f, Time.deltaTime / 1.3f);
+                ApplyY();
+                if (t >= 1f) rising = false;
+            }
+            else if (lowering)
+            {
+                t = Mathf.MoveTowards(t, 0f, Time.deltaTime / 1.1f);
+                ApplyY();
+                if (t <= 0f)
+                {
+                    foreach (var a in arms) if (a != null) Destroy(a);
+                    Destroy(this);
+                }
+            }
+        }
+
+        /// <summary>Baja el carro y retira los brazos (al terminar la obra).</summary>
+        public void Lower() { lowering = true; rising = false; }
     }
 }

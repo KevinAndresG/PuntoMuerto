@@ -56,8 +56,8 @@ namespace PuntoMuerto
         void OnEnable() { GameEvents.OnMissionFailed += OnMissionFailed; GameEvents.OnDayStart += OnDayStart; }
         void OnDisable() { GameEvents.OnMissionFailed -= OnMissionFailed; GameEvents.OnDayStart -= OnDayStart; }
 
-        // fila en el patio: desde la ventanilla (pared sur del cuarto) hacia el fondo
-        Vector3 QueueSpot(int i) => new Vector3(30f, 0f, -26.5f - i * 1.2f);
+        // fila en el patio: desde la ventanilla (pared sur del cuarto, z=-28.7) hacia el fondo
+        Vector3 QueueSpot(int i) => new Vector3(30f, 0f, -29.8f - i * 1.2f);
         Vector3 ParkSpot(int i) => new Vector3(36f + i * 4f, 0f, -40.5f);
 
         public void BeginArrival(Mission m, Color carColor, bool fromNet = false)

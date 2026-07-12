@@ -124,7 +124,14 @@ namespace PuntoMuerto
                 car = cars[i];
                 cars[i] = null;
                 dummy = ReceptionSystem.I != null ? ReceptionSystem.I.TakeWaiting(m) : null;
-                // sale derecho por su abertura del frente y toma la calle
+                // el carro terminado SALE de la bahía y aparece AFUERA (frente); el cliente
+                // camina desde la sala de espera hasta él y recién ahí arranca hacia la calle.
+                if (car != null)
+                {
+                    Vector3 fuera = new Vector3(Mathf.Clamp(car.transform.position.x, 16f, 44f), 0.08f, -4f);
+                    car.transform.position = fuera;
+                    car.transform.rotation = Quaternion.LookRotation(Vector3.forward);
+                }
                 float ex = car != null ? car.transform.position.x : 35f;
                 exitPath = new[] { new Vector3(ex, 0.08f, -4.5f), new Vector3(48f, 0.08f, 2f), new Vector3(75f, 0.08f, 2f) };
             }

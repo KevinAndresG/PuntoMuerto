@@ -40,11 +40,11 @@ namespace PuntoMuerto
         // clientes aceptados esperando su carro en la sala de espera
         readonly List<(Mission m, ClientDummy d)> waitingForJob = new List<(Mission, ClientDummy)>();
 
-        static readonly Vector3 WalkInPoint = new Vector3(30f, 0f, -6f);
-        // sala de espera interior (ala oeste del garaje)
+        static readonly Vector3 WalkInPoint = new Vector3(50.5f, 0f, -2f);
+        // sala de espera (bancas del ala este, contra la pared; corridas al fondo z-13.5..-16.5)
         static readonly Vector3[] WaitSpots =
         {
-            new Vector3(18.6f, 0f, -13.2f), new Vector3(18.6f, 0f, -17.8f), new Vector3(19.8f, 0f, -15.5f)
+            new Vector3(54f, 0f, -13.5f), new Vector3(54f, 0f, -16.5f), new Vector3(53f, 0f, -15f)
         };
 
         public bool CanReceive => Queue.Count + pending.Count < MaxQueue;
@@ -64,7 +64,7 @@ namespace PuntoMuerto
             GameEvents.OnDayStart -= OnDayStart;
         }
 
-        Vector3 QueueSpot(int i) => new Vector3(44f - i * 1.1f, 0f, -8.6f + i * 1.7f);
+        Vector3 QueueSpot(int i) => new Vector3(49.5f + i * 1.2f, 0f, -8f);
 
         /// <summary>El cliente parte hacia el taller (en carro o a pie). La tarea aparece cuando llega a la fila.</summary>
         public void BeginArrival(Mission m, Color carColor, bool fromNet = false)
